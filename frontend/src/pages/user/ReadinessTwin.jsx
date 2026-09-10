@@ -165,23 +165,23 @@ export default function ReadinessTwin() {
       </div>
 
       {/* Selectors Card */}
-      <Card className="bg-white border-slate-200 shadow-sm">
+      <Card className="shadow-sm">
         <form onSubmit={handleAnalyze} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
             <div className="md:col-span-4 space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 flex items-center">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center">
                 <FileText className="w-3.5 h-3.5 mr-1 text-slate-400" /> Select Resume
               </label>
               {resumes.length === 0 ? (
-                <div className="text-xs text-slate-500 p-2 border border-dashed rounded-lg bg-slate-50 flex justify-between">
+                <div className="text-xs text-slate-500 dark:text-slate-400 p-2 border border-dashed rounded-lg bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 flex justify-between">
                   <span>No resumes</span>
-                  <Link to={ROUTES.RESUME} className="text-brand-600 font-bold hover:underline">Upload →</Link>
+                  <Link to={ROUTES.RESUME} className="text-brand-600 dark:text-brand-400 font-bold hover:underline">Upload →</Link>
                 </div>
               ) : (
                 <select
                   value={selectedResumeId}
                   onChange={(e) => setSelectedResumeId(e.target.value)}
-                  className="w-full text-xs border border-slate-300 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-xs border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
                   {resumes.map((r) => (
                     <option key={r.id} value={r.id}>
@@ -193,19 +193,19 @@ export default function ReadinessTwin() {
             </div>
 
             <div className="md:col-span-5 space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 flex items-center">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center">
                 <Briefcase className="w-3.5 h-3.5 mr-1 text-slate-400" /> Select Target Job Description
               </label>
               {jobs.length === 0 ? (
-                <div className="text-xs text-slate-500 p-2 border border-dashed rounded-lg bg-slate-50 flex justify-between">
+                <div className="text-xs text-slate-500 dark:text-slate-400 p-2 border border-dashed rounded-lg bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 flex justify-between">
                   <span>No jobs</span>
-                  <Link to={ROUTES.JOB_ANALYSIS} className="text-brand-600 font-bold hover:underline">Analyze JD →</Link>
+                  <Link to={ROUTES.JOB_ANALYSIS} className="text-brand-600 dark:text-brand-400 font-bold hover:underline">Analyze JD →</Link>
                 </div>
               ) : (
                 <select
                   value={selectedJobId}
                   onChange={(e) => setSelectedJobId(e.target.value)}
-                  className="w-full text-xs border border-slate-300 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-xs border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
                   {jobs.map((j) => (
                     <option key={j.id} value={j.id}>
@@ -230,9 +230,9 @@ export default function ReadinessTwin() {
           </div>
 
           {/* Optional Verifiable Proof URLs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
             <div className="space-y-1">
-              <label className="font-semibold text-slate-600 flex items-center">
+              <label className="font-semibold text-slate-600 dark:text-slate-400 flex items-center">
                 <Github className="w-3.5 h-3.5 mr-1 text-slate-400" /> GitHub Repository / Profile URL (Optional)
               </label>
               <input
@@ -240,11 +240,11 @@ export default function ReadinessTwin() {
                 placeholder="https://github.com/username/project"
                 value={githubUrl}
                 onChange={(e) => setGithubUrl(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-brand-500 outline-none"
+                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-brand-500 outline-none"
               />
             </div>
             <div className="space-y-1">
-              <label className="font-semibold text-slate-600 flex items-center">
+              <label className="font-semibold text-slate-600 dark:text-slate-400 flex items-center">
                 <Globe className="w-3.5 h-3.5 mr-1 text-slate-400" /> Live Demo / Portfolio Link (Optional)
               </label>
               <input
@@ -252,7 +252,7 @@ export default function ReadinessTwin() {
                 placeholder="https://my-dashboard.vercel.app"
                 value={portfolioUrl}
                 onChange={(e) => setPortfolioUrl(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-brand-500 outline-none"
+                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-brand-500 outline-none"
               />
             </div>
           </div>
@@ -265,12 +265,12 @@ export default function ReadinessTwin() {
           {/* Left Column: Hero Verdict & Contrast Card */}
           <div className="lg:col-span-5 space-y-6">
             {/* Verdict Hero Card */}
-            <Card className="p-6 text-center space-y-4 bg-gradient-to-b from-white to-slate-50 border-slate-200">
+            <Card className="p-6 text-center space-y-4">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Verified Readiness Quotient</span>
-                <h2 className="text-xl font-bold text-slate-900 mt-0.5">{activeAnalysis.job_title}</h2>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Verified Readiness Quotient</span>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{activeAnalysis.job_title}</h2>
                 {activeAnalysis.company_name && (
-                  <p className="text-xs text-slate-500 flex items-center justify-center mt-0.5">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center mt-0.5">
                     <Building2 className="w-3.5 h-3.5 mr-1 text-slate-400" /> {activeAnalysis.company_name}
                   </p>
                 )}
@@ -281,18 +281,18 @@ export default function ReadinessTwin() {
                 <div
                   className={`w-36 h-36 rounded-full flex flex-col items-center justify-center border-8 shadow-inner ${
                     activeAnalysis.verdict.verdict_color === 'emerald'
-                      ? 'border-emerald-500 bg-emerald-50 text-emerald-950'
+                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-200'
                       : activeAnalysis.verdict.verdict_color === 'brand'
-                      ? 'border-brand-500 bg-brand-50 text-brand-950'
+                      ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/60 text-brand-950 dark:text-brand-200'
                       : activeAnalysis.verdict.verdict_color === 'amber'
-                      ? 'border-amber-500 bg-amber-50 text-amber-950'
-                      : 'border-rose-500 bg-rose-50 text-rose-950'
+                      ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200'
+                      : 'border-rose-500 bg-rose-50 dark:bg-rose-950/60 text-rose-950 dark:text-rose-200'
                   }`}
                 >
                   <span className="text-4xl font-black tracking-tight">
                     {Math.round(activeAnalysis.overall_readiness_score)}%
                   </span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mt-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-0.5">
                     Readiness
                   </span>
                 </div>
@@ -303,17 +303,17 @@ export default function ReadinessTwin() {
                 <span
                   className={`inline-block text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
                     activeAnalysis.verdict.verdict_color === 'emerald'
-                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
                       : activeAnalysis.verdict.verdict_color === 'brand'
-                      ? 'bg-brand-100 text-brand-800 border-brand-300'
+                      ? 'bg-brand-100 dark:bg-brand-950/60 text-brand-800 dark:text-brand-300 border-brand-300 dark:border-brand-800'
                       : activeAnalysis.verdict.verdict_color === 'amber'
-                      ? 'bg-amber-100 text-amber-800 border-amber-300'
-                      : 'bg-rose-100 text-rose-800 border-rose-300'
+                      ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                      : 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-800'
                   }`}
                 >
                   {activeAnalysis.verdict.verdict_label}
                 </span>
-                <p className="text-xs text-slate-600 mt-2 leading-relaxed text-left bg-white p-3 rounded-xl border border-slate-200">
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 leading-relaxed text-left bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
                   {activeAnalysis.verdict.summary_explanation}
                 </p>
               </div>
@@ -326,23 +326,23 @@ export default function ReadinessTwin() {
             >
               <div className="space-y-4 text-xs">
                 <div className="grid grid-cols-2 gap-3 text-center">
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <span className="text-[10px] font-bold uppercase text-slate-400">ATS Resume Match</span>
-                    <div className="text-2xl font-extrabold text-slate-800 mt-0.5">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500">ATS Resume Match</span>
+                    <div className="text-2xl font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">
                       {Math.round(activeAnalysis.verdict.ats_match_score)}%
                     </div>
-                    <span className="text-[10px] text-slate-500">Textual Overlap</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">Textual Overlap</span>
                   </div>
-                  <div className="p-3 bg-brand-50 rounded-xl border border-brand-200">
-                    <span className="text-[10px] font-bold uppercase text-brand-700">Readiness Twin</span>
-                    <div className="text-2xl font-extrabold text-brand-700 mt-0.5">
+                  <div className="p-3 bg-brand-50 dark:bg-brand-950/60 rounded-xl border border-brand-200 dark:border-brand-800">
+                    <span className="text-[10px] font-bold uppercase text-brand-700 dark:text-brand-300">Readiness Twin</span>
+                    <div className="text-2xl font-extrabold text-brand-700 dark:text-brand-300 mt-0.5">
                       {Math.round(activeAnalysis.verdict.overall_readiness_score)}%
                     </div>
-                    <span className="text-[10px] text-brand-600">Demonstrated Ability</span>
+                    <span className="text-[10px] text-brand-600 dark:text-brand-400">Demonstrated Ability</span>
                   </div>
                 </div>
 
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 leading-relaxed text-slate-700">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 leading-relaxed text-slate-700 dark:text-slate-300">
                   <p>{activeAnalysis.verdict.candid_comparison_summary}</p>
                 </div>
               </div>
@@ -359,16 +359,16 @@ export default function ReadinessTwin() {
                       key={item.id}
                       className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
                         item.id === activeAnalysis.id
-                          ? 'bg-brand-50/60 border-brand-300 shadow-2xs'
-                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                          ? 'bg-brand-50/60 dark:bg-brand-950/60 border-brand-300 dark:border-brand-700 shadow-2xs'
+                          : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
                       }`}
                     >
                       <div
                         className="cursor-pointer flex-1 mr-2 overflow-hidden"
                         onClick={() => fetchAnalysisDetail(item.id)}
                       >
-                        <h4 className="font-bold text-slate-900 truncate">{item.job_title}</h4>
-                        <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                        <h4 className="font-bold text-slate-900 dark:text-white truncate">{item.job_title}</h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                           Readiness: {Math.round(item.overall_readiness_score)}% • ATS: {Math.round(item.ats_match_score)}%
                         </p>
                       </div>
@@ -390,44 +390,44 @@ export default function ReadinessTwin() {
           <div className="lg:col-span-7 space-y-6">
             {/* 5-Dimensional Breakdown */}
             <div className="space-y-3">
-              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider text-xs">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider text-xs">
                 5-Dimensional Competency Breakdown
               </h2>
 
               {activeAnalysis.breakdown_list.map((dim, idx) => (
                 <div
                   key={idx}
-                  className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3"
+                  className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3"
                 >
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center space-x-2">
                         {getDimensionIcon(dim.name)}
-                        <h3 className="text-sm font-bold text-slate-900">{dim.name}</h3>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">{dim.name}</h3>
                         <span
                           className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
                             dim.status_color === 'emerald'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                               : dim.status_color === 'amber'
-                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                              : 'bg-rose-50 text-rose-700 border border-rose-200'
+                              ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                              : 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
                           }`}
                         >
                           {dim.status}
                         </span>
-                        <span className="text-[10px] text-slate-400 font-semibold">({dim.weight_percentage}% Weight)</span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold">({dim.weight_percentage}% Weight)</span>
                       </div>
-                      <p className="text-xs text-slate-500 leading-relaxed">{dim.notes}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{dim.notes}</p>
                     </div>
 
                     <div className="text-right shrink-0 ml-4">
-                      <span className="text-xl font-black text-slate-900">{Math.round(dim.score)}%</span>
-                      <p className="text-[10px] text-slate-400">Target: {Math.round(dim.benchmark)}%</p>
+                      <span className="text-xl font-black text-slate-900 dark:text-white">{Math.round(dim.score)}%</span>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">Target: {Math.round(dim.benchmark)}%</p>
                     </div>
                   </div>
 
                   {/* Progress Bar */}
-                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-300 ${
                         dim.status_color === 'emerald'
@@ -441,11 +441,11 @@ export default function ReadinessTwin() {
                   </div>
 
                   {/* Strengths & Gaps */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-[11px]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px]">
                     {dim.strengths?.length > 0 && (
                       <div className="space-y-1">
-                        <strong className="text-emerald-700 font-bold block">Demonstrated Strengths:</strong>
-                        <ul className="space-y-0.5 text-slate-600 list-disc list-inside">
+                        <strong className="text-emerald-700 dark:text-emerald-400 font-bold block">Demonstrated Strengths:</strong>
+                        <ul className="space-y-0.5 text-slate-600 dark:text-slate-400 list-disc list-inside">
                           {dim.strengths.map((s, i) => (
                             <li key={i}>{s}</li>
                           ))}
@@ -454,8 +454,8 @@ export default function ReadinessTwin() {
                     )}
                     {dim.gaps?.length > 0 && (
                       <div className="space-y-1">
-                        <strong className="text-rose-700 font-bold block">Key Areas for Polish:</strong>
-                        <ul className="space-y-0.5 text-slate-600 list-disc list-inside">
+                        <strong className="text-rose-700 dark:text-rose-400 font-bold block">Key Areas for Polish:</strong>
+                        <ul className="space-y-0.5 text-slate-600 dark:text-slate-400 list-disc list-inside">
                           {dim.gaps.map((g, i) => (
                             <li key={i}>{g}</li>
                           ))}
@@ -463,6 +463,18 @@ export default function ReadinessTwin() {
                       </div>
                     )}
                   </div>
+
+                  {dim.name?.includes('Evidence') && (
+                    <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs">
+                      <span className="text-slate-500 dark:text-slate-400 flex items-center">
+                        <Github className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+                        Verify code in your GitHub repositories:
+                      </span>
+                      <Link to={ROUTES.PROFILE} className="text-brand-600 dark:text-brand-400 font-bold hover:underline">
+                        Scan & Verify Skills in Projects →
+                      </Link>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -471,14 +483,14 @@ export default function ReadinessTwin() {
             <Card
               title="Next Action Steps Before Applying"
               subtitle="Prioritized recommendations to maximize interview success"
-              className="border-brand-200 bg-brand-50/20"
+              className="border-brand-200 dark:border-brand-800 bg-brand-50/20 dark:bg-brand-950/20"
             >
               <div className="space-y-3 text-xs">
                 <div className="space-y-2">
                   {activeAnalysis.verdict.top_actions_before_applying.map((action, idx) => (
                     <div
                       key={idx}
-                      className="p-3 bg-white rounded-xl border border-slate-200 text-slate-700 flex items-start space-x-2.5 shadow-2xs"
+                      className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 flex items-start space-x-2.5 shadow-2xs"
                     >
                       <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                       <span className="leading-relaxed">{action}</span>
@@ -486,7 +498,7 @@ export default function ReadinessTwin() {
                   ))}
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 pt-3 border-t border-slate-200">
+                <div className="flex flex-col sm:flex-row gap-3 pt-3 border-t border-slate-200 dark:border-slate-700">
                   <Link to={ROUTES.ROADMAP} className="flex-1">
                     <Button variant="primary" size="md" className="w-full justify-center text-xs font-bold">
                       Open Step-by-Step Career Roadmap <ArrowRight className="w-4 h-4 ml-1.5" />
@@ -504,13 +516,13 @@ export default function ReadinessTwin() {
         </div>
       ) : (
         /* Empty State */
-        <Card className="text-center py-16 px-6 border-dashed border-2 border-slate-200">
+        <Card className="text-center py-16 px-6 border-dashed border-2 border-slate-200 dark:border-slate-800">
           <div className="max-w-md mx-auto space-y-3">
-            <div className="w-16 h-16 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 flex items-center justify-center mx-auto">
               <ShieldCheck className="w-8 h-8" />
             </div>
-            <h3 className="text-base font-bold text-slate-800">No Readiness Twin evaluation yet</h3>
-            <p className="text-xs text-slate-500">
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">No Readiness Twin evaluation yet</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Select an uploaded resume and target job description above to synthesize your 5-dimensional candidate competency model.
             </p>
           </div>

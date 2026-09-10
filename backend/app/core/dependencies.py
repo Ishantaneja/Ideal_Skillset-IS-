@@ -63,6 +63,9 @@ async def get_current_user(
         # Or find by email
         if not user_doc and email:
             user_doc = users_col.find_one({"email": email.lower().strip()})
+    if not user_doc and email:
+        from app.services.auth_service import _IN_MEMORY_USERS
+        user_doc = _IN_MEMORY_USERS.get(email.lower().strip())
 
     if user_doc:
         return {
@@ -70,7 +73,11 @@ async def get_current_user(
             "name": user_doc.get("name", "User"),
             "email": user_doc.get("email"),
             "role": user_doc.get("role", UserRole.USER),
+            "company_name": user_doc.get("company_name"),
             "target_role": user_doc.get("target_role", "Junior Data Analyst"),
+            "github_url": user_doc.get("github_url"),
+            "skills": user_doc.get("skills"),
+            "github_verification": user_doc.get("github_verification"),
             "created_at": user_doc.get("created_at"),
             "updated_at": user_doc.get("updated_at"),
         }
@@ -81,7 +88,10 @@ async def get_current_user(
         "name": payload.get("name", "User"),
         "email": email or "",
         "role": payload.get("role", UserRole.USER),
+        "company_name": payload.get("company_name"),
         "target_role": payload.get("target_role", "Junior Data Analyst"),
+        "github_url": payload.get("github_url"),
+        "skills": payload.get("skills"),
         "created_at": None,
         "updated_at": None,
     }
@@ -93,6 +103,22 @@ async def require_user(
     """
     Ensures that the request is made by an authenticated user or admin.
     """
+    return current_user
+
+
+async def require_recruiter(
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    Verifies that the authenticated user possesses the 'recruiter' or 'admin' role.
+    Returns 403 Forbidden for candidate accounts.
+    """
+    role = current_user.get("role")
+    if role != UserRole.RECRUITER and role != "recruiter" and role != UserRole.ADMIN and role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access restricted: recruiter or employer privileges required",
+        )
     return current_user
 
 
@@ -113,3 +139,4 @@ async def require_admin(
 
 # Alias for backward compatibility
 get_current_admin = require_admin
+get_current_recruiter = require_recruiter

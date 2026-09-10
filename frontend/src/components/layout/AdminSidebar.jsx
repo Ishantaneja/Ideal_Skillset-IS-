@@ -4,35 +4,64 @@ import {
   ShieldAlert,
   Users,
   Briefcase,
+  FileText,
+  ClipboardCheck,
+  Sparkles,
   Layers,
-  ClipboardList,
-  MessageSquareQuote,
-  BarChart3,
   Settings,
   LogOut,
   LayoutDashboard,
-  ArrowLeft
+  ArrowLeft,
+  Target,
+  Mic,
+  Map,
+  Cpu,
+  Shield,
+  Bell
 } from 'lucide-react';
 import { ROUTES } from '@/utils/constants';
-import { useNotification } from '@/hooks';
+import { useNotification, useAuth } from '@/hooks';
 
 export default function AdminSidebar({ isOpen, onClose }) {
   const navigate = useNavigate();
   const notify = useNotification();
+  const { user, logout } = useAuth();
 
-  const navigation = [
-    { name: 'Dashboard', href: ROUTES.ADMIN_DASHBOARD, icon: LayoutDashboard },
-    { name: 'Users', href: `${ROUTES.ADMIN_DASHBOARD}#users`, icon: Users },
-    { name: 'Job Roles', href: `${ROUTES.ADMIN_DASHBOARD}#job-roles`, icon: Briefcase },
-    { name: 'Skills', href: `${ROUTES.ADMIN_DASHBOARD}#skills`, icon: Layers },
-    { name: 'Assessments', href: `${ROUTES.ADMIN_DASHBOARD}#assessments`, icon: ClipboardList },
-    { name: 'Interview Questions', href: `${ROUTES.ADMIN_DASHBOARD}#interview-questions`, icon: MessageSquareQuote },
-    { name: 'Analytics', href: `${ROUTES.ADMIN_DASHBOARD}#analytics`, icon: BarChart3 },
-    { name: 'Settings', href: `${ROUTES.ADMIN_DASHBOARD}#settings`, icon: Settings },
+  const navigationGroups = [
+    {
+      group: 'Core Operations',
+      items: [
+        { name: 'Dashboard', href: ROUTES.ADMIN_DASHBOARD, icon: LayoutDashboard },
+        { name: 'Users Directory', href: ROUTES.ADMIN_USERS, icon: Users },
+        { name: 'Resumes', href: ROUTES.ADMIN_RESUMES, icon: FileText },
+        { name: 'Job Requisitions', href: ROUTES.ADMIN_JOBS, icon: Briefcase },
+      ]
+    },
+    {
+      group: 'Analytics & Intelligence',
+      items: [
+        { name: 'ATS Analytics', href: ROUTES.ADMIN_ATS, icon: Target },
+        { name: 'Skill Market Gaps', href: ROUTES.ADMIN_SKILLS, icon: Layers },
+        { name: 'Readiness Twin', href: ROUTES.ADMIN_READINESS, icon: Sparkles },
+        { name: 'Assessments', href: ROUTES.ADMIN_ASSESSMENTS, icon: ClipboardCheck },
+        { name: 'Mock Interviews', href: ROUTES.ADMIN_INTERVIEWS, icon: Mic },
+        { name: 'Career Roadmaps', href: ROUTES.ADMIN_ROADMAPS, icon: Map },
+      ]
+    },
+    {
+      group: 'System & Security',
+      items: [
+        { name: 'AI & Inference', href: ROUTES.ADMIN_AI, icon: Cpu },
+        { name: 'Audit Trail', href: ROUTES.ADMIN_AUDIT_LOGS, icon: Shield },
+        { name: 'System Alerts', href: ROUTES.ADMIN_NOTIFICATIONS, icon: Bell },
+        { name: 'Platform Settings', href: ROUTES.ADMIN_SETTINGS, icon: Settings },
+      ]
+    }
   ];
 
   const handleLogout = () => {
-    notify.info('Admin logged out');
+    logout();
+    notify.info('Admin session logged out');
     navigate(ROUTES.ADMIN_LOGIN);
   };
 
@@ -52,8 +81,8 @@ export default function AdminSidebar({ isOpen, onClose }) {
         }`}
       >
         {/* Brand Header */}
-        <div>
-          <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800">
+        <div className="flex flex-col h-full overflow-hidden">
+          <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800 shrink-0">
             <NavLink to={ROUTES.ADMIN_DASHBOARD} className="flex items-center space-x-2.5">
               <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center text-white shadow-md">
                 <ShieldAlert className="w-5 h-5" />
@@ -65,31 +94,36 @@ export default function AdminSidebar({ isOpen, onClose }) {
             </NavLink>
           </div>
 
-          {/* Navigation */}
-          <div className="px-3 py-4 space-y-1">
-            <div className="px-3 pb-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              Management
-            </div>
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.name}
-                  to={item.href}
-                  onClick={onClose}
-                  className={({ isActive }) =>
-                    `flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                      isActive && item.href === ROUTES.ADMIN_DASHBOARD
-                        ? 'bg-slate-800 text-white font-semibold border-l-4 border-red-500 pl-2'
-                        : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
-                    }`
-                  }
-                >
-                  <Icon className="w-4 h-4 mr-3 shrink-0" />
-                  <span>{item.name}</span>
-                </NavLink>
-              );
-            })}
+          {/* Navigation - Scrollable */}
+          <div className="px-3 py-3 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+            {navigationGroups.map((group) => (
+              <div key={group.group} className="space-y-1">
+                <div className="px-3 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  {group.group}
+                </div>
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <NavLink
+                      key={item.name}
+                      to={item.href}
+                      end={item.href === ROUTES.ADMIN_DASHBOARD}
+                      onClick={onClose}
+                      className={({ isActive }) =>
+                        `flex items-center px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                          isActive
+                            ? 'bg-slate-800 text-white font-semibold border-l-4 border-red-500 pl-2 shadow-xs'
+                            : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                        }`
+                      }
+                    >
+                      <Icon className="w-4 h-4 mr-2.5 shrink-0" />
+                      <span className="truncate">{item.name}</span>
+                    </NavLink>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
 
@@ -97,11 +131,11 @@ export default function AdminSidebar({ isOpen, onClose }) {
         <div className="p-4 border-t border-slate-800 bg-slate-950/50">
           <div className="flex items-center space-x-3 mb-3 px-2">
             <div className="w-9 h-9 rounded-full bg-red-950 text-red-400 font-bold flex items-center justify-center text-xs border border-red-800">
-              AD
+              {user?.initials || 'AD'}
             </div>
             <div className="overflow-hidden">
-              <p className="text-xs font-semibold text-white truncate">System Administrator</p>
-              <p className="text-[11px] text-slate-400 truncate">Superuser Access</p>
+              <p className="text-xs font-semibold text-white truncate">{user?.name || 'Administrator'}</p>
+              <p className="text-[11px] text-red-400 font-medium truncate">System Admin</p>
             </div>
           </div>
 

@@ -8,3 +8,6 @@ export { default as skillGapService } from './skillGapService';
 export { default as roadmapService } from './roadmapService';
 export { default as readinessService } from './readinessService';
 export { default as careerService } from './careerService';
+export { default as adminService } from './adminService';
+export { default as evidenceService } from './evidenceService';
+export { default as recruiterService } from './recruiterService';

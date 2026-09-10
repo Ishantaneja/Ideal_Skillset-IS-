@@ -6,12 +6,14 @@ export { default as Select } from './common/Select';
 export { default as Badge } from './common/Badge';
 export { default as ProgressBar } from './common/ProgressBar';
 export { default as LoadingSpinner } from './common/LoadingSpinner';
+export { default as ThemeToggle } from './common/ThemeToggle';
 
 // Layout & Navigation
 export { default as Navbar } from './layout/Navbar';
 export { default as Footer } from './layout/Footer';
 export { default as Sidebar } from './layout/Sidebar';
 export { default as AdminSidebar } from './layout/AdminSidebar';
+export { default as RecruiterSidebar } from './layout/RecruiterSidebar';
 
 // Readiness & Metrics
 export { default as ScoreCard } from './readiness/ScoreCard';

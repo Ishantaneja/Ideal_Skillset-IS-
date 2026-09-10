@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 
@@ -68,9 +68,7 @@ class ResumeResponse(BaseModel):
     parsing_status: str = "completed"
     parsing_error: Optional[str] = None
 
-    class Config:
-        populate_by_name = True
-        from_attributes = True
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
 class ResumeListItem(BaseModel):
@@ -108,9 +106,7 @@ class ResumeInDB(BaseModel):
     parsing_status: str = "completed"
     parsing_error: Optional[str] = None
 
-    class Config:
-        populate_by_name = True
-        from_attributes = True
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
 # Aliases for backward compatibility

@@ -47,33 +47,33 @@ export default function Sidebar({ isOpen, onClose }) {
       {/* Mobile backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm lg:hidden"
           onClick={onClose}
         />
       )}
 
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 w-64 bg-white border-r border-slate-200/80 flex flex-col justify-between transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-40 w-64 bg-white dark:bg-slate-900 border-r border-slate-200/80 dark:border-slate-800 flex flex-col justify-between transition-all duration-300 ease-in-out lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Brand Header */}
         <div>
-          <div className="h-16 flex items-center px-6 border-b border-slate-100">
+          <div className="h-16 flex items-center px-6 border-b border-slate-100 dark:border-slate-800">
             <NavLink to={ROUTES.USER_DASHBOARD} className="flex items-center space-x-2.5">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-600 to-primary-600 flex items-center justify-center text-white shadow-sm">
                 <Compass className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-bold text-slate-900 tracking-tight text-base">Ideal Skillset</span>
-                <span className="block text-[10px] uppercase font-semibold text-brand-600 tracking-wider">Candidate Portal</span>
+                <span className="font-bold text-slate-900 dark:text-white tracking-tight text-base">Ideal Skillset</span>
+                <span className="block text-[10px] uppercase font-semibold text-brand-600 dark:text-brand-400 tracking-wider">Candidate Portal</span>
               </div>
             </NavLink>
           </div>
 
           {/* Navigation Links */}
           <div className="px-3 py-4 space-y-1">
-            <div className="px-3 pb-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+            <div className="px-3 pb-2 text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
               Navigation
             </div>
             {navigation.map((item) => {
@@ -86,8 +86,8 @@ export default function Sidebar({ isOpen, onClose }) {
                   className={({ isActive }) =>
                     `flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-brand-50 text-brand-700 font-semibold border-l-4 border-brand-600 pl-2'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                        ? 'bg-brand-50 dark:bg-brand-950/70 text-brand-700 dark:text-brand-300 font-semibold border-l-4 border-brand-600 dark:border-brand-500 pl-2'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                     }`
                   }
                 >
@@ -100,18 +100,18 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
 
         {/* User Profile & Logout */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/60">
           <Link
             to={ROUTES.PROFILE}
             onClick={onClose}
-            className="flex items-center space-x-3 mb-3 px-2 py-1.5 rounded-lg hover:bg-white transition-colors block"
+            className="flex items-center space-x-3 mb-3 px-2 py-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors block"
           >
-            <div className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 font-bold flex items-center justify-center text-xs border border-brand-200 shrink-0">
+            <div className="w-9 h-9 rounded-full bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-bold flex items-center justify-center text-xs border border-brand-200 dark:border-brand-800 shrink-0">
               {user?.initials || 'ID'}
             </div>
             <div className="overflow-hidden">
-              <p className="text-xs font-semibold text-slate-900 truncate">{user?.fullName || user?.name || 'Candidate'}</p>
-              <p className="text-[11px] text-slate-500 truncate">Target: {user?.targetRole || 'Junior Data Analyst'}</p>
+              <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">{user?.fullName || user?.name || 'Candidate'}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Target: {user?.targetRole || 'Junior Data Analyst'}</p>
             </div>
           </Link>
 
@@ -119,16 +119,16 @@ export default function Sidebar({ isOpen, onClose }) {
             <NavLink
               to={ROUTES.PROFILE}
               onClick={onClose}
-              className="w-full flex items-center px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white hover:text-slate-900 rounded-md transition-colors"
+              className="w-full flex items-center px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white rounded-md transition-colors"
             >
               <User className="w-3.5 h-3.5 mr-2.5 text-slate-400" />
               Edit Profile
             </NavLink>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-md transition-colors"
+              className="w-full flex items-center px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-md transition-colors"
             >
-              <LogOut className="w-3.5 h-3.5 mr-2.5 text-red-500" />
+              <LogOut className="w-3.5 h-3.5 mr-2.5 text-red-500 dark:text-red-400" />
               Logout
             </button>
           </div>

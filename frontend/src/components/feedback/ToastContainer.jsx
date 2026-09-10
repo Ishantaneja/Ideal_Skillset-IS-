@@ -12,10 +12,10 @@ export default function ToastContainer({ toasts, onDismiss }) {
   };
 
   const borders = {
-    success: 'border-emerald-200 bg-white text-slate-800 shadow-emerald-500/10',
-    error: 'border-red-200 bg-white text-slate-800 shadow-red-500/10',
-    warning: 'border-amber-200 bg-white text-slate-800 shadow-amber-500/10',
-    info: 'border-blue-200 bg-white text-slate-800 shadow-blue-500/10',
+    success: 'border-emerald-200 dark:border-emerald-800/80 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-emerald-500/10',
+    error: 'border-red-200 dark:border-red-800/80 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-red-500/10',
+    warning: 'border-amber-200 dark:border-amber-800/80 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-amber-500/10',
+    info: 'border-blue-200 dark:border-blue-800/80 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-blue-500/10',
   };
 
   return (
@@ -33,7 +33,7 @@ export default function ToastContainer({ toasts, onDismiss }) {
           </div>
           <button
             onClick={() => onDismiss(toast.id)}
-            className="ml-3 p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="ml-3 p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             aria-label="Dismiss toast"
           >
             <X className="w-4 h-4" />

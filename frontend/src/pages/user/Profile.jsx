@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Select, Badge, LoadingSpinner } from '@/components';
 import { useNotification, useDocumentTitle, useAuth } from '@/hooks';
-import { userService } from '@/services';
+import { userService, evidenceService } from '@/services';
 import { DEFAULT_TARGET_ROLES } from '@/utils/constants';
 import {
   User,
@@ -19,6 +19,15 @@ import {
   Save,
   Loader2,
   CheckCircle2,
+  ShieldCheck,
+  FolderGit2,
+  Star,
+  GitBranch,
+  AlertCircle,
+  Code,
+  Sparkles,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 export default function Profile() {
@@ -28,6 +37,9 @@ export default function Profile() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [verifyingGithub, setVerifyingGithub] = useState(false);
+  const [githubVerificationData, setGithubVerificationData] = useState(null);
+  const [showReposList, setShowReposList] = useState(false);
   const [newSkill, setNewSkill] = useState('');
   const [newInterest, setNewInterest] = useState('');
 
@@ -81,6 +93,10 @@ export default function Profile() {
             linkedin_url: data.linkedin_url || '',
             portfolio_url: data.portfolio_url || '',
           });
+
+          if (data.github_verification) {
+            setGithubVerificationData(data.github_verification);
+          }
         }
       } catch (err) {
         notify.warning('Could not load profile from server, using local session');
@@ -90,6 +106,27 @@ export default function Profile() {
     }
     loadProfile();
   }, [authUser]);
+
+  const handleVerifyGithub = async () => {
+    if (!formData.github_url || !formData.github_url.trim()) {
+      notify.warning('Please enter a valid GitHub profile or repository URL first.');
+      return;
+    }
+
+    setVerifyingGithub(true);
+    try {
+      const res = await evidenceService.verifyGitHub({
+        github_url: formData.github_url.trim(),
+        skills_to_verify: formData.skills,
+      });
+      setGithubVerificationData(res);
+      notify.success(`GitHub project scan complete! Verified ${res.verified_skills_count} skills across ${res.public_repos_count} repositories.`);
+    } catch (err) {
+      notify.error(err.message || 'Failed to verify GitHub link. Please check the URL.');
+    } finally {
+      setVerifyingGithub(false);
+    }
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -158,7 +195,7 @@ export default function Profile() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       {/* Header Banner */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center space-x-4">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-600 to-primary-600 text-white flex items-center justify-center font-extrabold text-2xl shadow-md">
             {formData.name
@@ -172,15 +209,15 @@ export default function Profile() {
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{formData.name || 'Candidate'}</h1>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{formData.name || 'Candidate'}</h1>
               <Badge variant="emerald">Verified User</Badge>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">{formData.email}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{formData.email}</p>
             <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
-              <span className="font-semibold text-brand-700 bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
+              <span className="font-semibold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/60 px-2 py-0.5 rounded border border-brand-200 dark:border-brand-800">
                 Target: {formData.target_role}
               </span>
-              <span className="text-slate-500">• {formData.experience_level} Level</span>
+              <span className="text-slate-500 dark:text-slate-400">• {formData.experience_level} Level</span>
             </div>
           </div>
         </div>
@@ -255,13 +292,13 @@ export default function Profile() {
           </div>
 
           <div className="mt-4">
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Professional Bio</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Professional Bio</label>
             <textarea
               rows={3}
               value={formData.bio}
               onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
               placeholder="Passionate aspiring data analyst with strong foundational skills in SQL, Python, and data visualization..."
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+              className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
             />
           </div>
         </Card>
@@ -338,7 +375,7 @@ export default function Profile() {
           </div>
 
           <div className="mt-4">
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Career Interests & Focus Areas</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Career Interests & Focus Areas</label>
             <div className="flex items-center space-x-2">
               <input
                 type="text"
@@ -346,7 +383,7 @@ export default function Profile() {
                 value={newInterest}
                 onChange={(e) => setNewInterest(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddInterest())}
-                className="flex-1 px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="flex-1 px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
               <Button type="button" variant="outline" size="sm" onClick={handleAddInterest}>
                 <Plus className="w-3.5 h-3.5 mr-1" /> Add
@@ -357,7 +394,7 @@ export default function Profile() {
               {formData.career_interests.map((interest, idx) => (
                 <span
                   key={idx}
-                  className="inline-flex items-center text-xs bg-slate-100 text-slate-800 px-2.5 py-1 rounded-full font-medium"
+                  className="inline-flex items-center text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-2.5 py-1 rounded-full font-medium"
                 >
                   {interest}
                   <button
@@ -382,7 +419,7 @@ export default function Profile() {
               value={newSkill}
               onChange={(e) => setNewSkill(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSkill())}
-              className="flex-1 px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="flex-1 px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
             <Button type="button" variant="outline" size="sm" onClick={handleAddSkill}>
               <Plus className="w-3.5 h-3.5 mr-1" /> Add Skill
@@ -393,9 +430,9 @@ export default function Profile() {
             {formData.skills.map((skill, idx) => (
               <span
                 key={idx}
-                className="inline-flex items-center text-xs bg-brand-50 text-brand-700 border border-brand-200 px-3 py-1 rounded-lg font-semibold shadow-xs"
+                className="inline-flex items-center text-xs bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 px-3 py-1 rounded-lg font-semibold shadow-xs"
               >
-                <CheckCircle2 className="w-3.5 h-3.5 text-brand-600 mr-1.5" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 mr-1.5" />
                 {skill}
                 <button
                   type="button"
@@ -421,16 +458,39 @@ export default function Profile() {
                 onChange={(e) => setFormData({ ...formData, github_url: e.target.value })}
                 placeholder="https://github.com/alexmorgan"
               />
-              {formData.github_url && (
-                <a
-                  href={formData.github_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center text-[11px] text-brand-600 hover:text-brand-700 mt-1"
+              <div className="flex items-center justify-between mt-2">
+                {formData.github_url ? (
+                  <a
+                    href={formData.github_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center text-[11px] text-brand-600 hover:text-brand-700"
+                  >
+                    <span>Preview GitHub</span> <ExternalLink className="w-3 h-3 ml-1" />
+                  </a>
+                ) : <span />}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={handleVerifyGithub}
+                  disabled={verifyingGithub || !formData.github_url}
+                  className="text-xs font-semibold bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700"
                 >
-                  <span>Preview Repository</span> <ExternalLink className="w-3 h-3 ml-1" />
-                </a>
-              )}
+                  {verifyingGithub ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin text-brand-600" />
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-3 h-3 mr-1 text-emerald-600 dark:text-emerald-400" />
+                      Verify Projects & Skills
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
             <div>
@@ -475,6 +535,197 @@ export default function Profile() {
               )}
             </div>
           </div>
+
+          {/* GitHub Verification Analysis Report */}
+          {githubVerificationData && (
+            <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800 space-y-4">
+              {/* Header Summary Banner */}
+              <div className="p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-white border border-slate-700 shrink-0">
+                    <Github className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold text-sm">@{githubVerificationData.username}</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        {githubVerificationData.verification_verdict}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      Scanned {githubVerificationData.public_repos_count} repositories · {githubVerificationData.total_stars} stars
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right sm:text-right flex sm:flex-col items-center sm:items-end justify-between border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-800">
+                  <span className="text-[11px] text-slate-400">Proof of Evidence Score</span>
+                  <span className="text-xl font-extrabold text-emerald-400">
+                    {githubVerificationData.proof_score}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Skills Verification Breakdown Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. Verified In Projects */}
+                <div className="p-4 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                        Skills Verified in GitHub Projects ({githubVerificationData.verified_skills?.length || 0})
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200/80 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
+                      Proven Code
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {githubVerificationData.verified_skills?.length > 0 ? (
+                      githubVerificationData.verified_skills.map((item) => (
+                        <div
+                          key={item.skill}
+                          className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-emerald-200/80 dark:border-emerald-900/50 shadow-xs space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center">
+                              <Code className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mr-1.5" />
+                              {item.skill}
+                            </span>
+                            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded">
+                              Used in Projects
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {item.matched_repositories?.map((repo) => (
+                              <span
+                                key={repo}
+                                className="inline-flex items-center text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                              >
+                                <FolderGit2 className="w-3 h-3 mr-1 text-slate-400" />
+                                {repo}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400 italic">
+                        No claimed skills were detected in public projects yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Not Found in Projects / Unverified */}
+                <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                        Skills Not Found in Projects ({githubVerificationData.unverified_skills?.length || 0})
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200/80 dark:bg-amber-900 text-amber-800 dark:text-amber-200">
+                      Unverified
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {githubVerificationData.unverified_skills?.length > 0 ? (
+                      githubVerificationData.unverified_skills.map((item) => (
+                        <div
+                          key={item.skill}
+                          className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-amber-200/80 dark:border-amber-900/50 shadow-xs space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-900 dark:text-white">
+                              {item.skill}
+                            </span>
+                            <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950 px-2 py-0.5 rounded">
+                              Not Used in Projects
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {item.recommendation || 'No code evidence found in public GitHub projects.'}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                        Awesome! All your claimed skills are backed by code in your GitHub repositories.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Scanned Repositories Toggle */}
+              {githubVerificationData.repositories?.length > 0 && (
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowReposList(!showReposList)}
+                    className="w-full flex items-center justify-between p-3.5 text-xs font-bold text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <span className="flex items-center">
+                      <FolderGit2 className="w-4 h-4 mr-2 text-brand-500" />
+                      Scanned Public Repositories ({githubVerificationData.repositories.length})
+                    </span>
+                    {showReposList ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+
+                  {showReposList && (
+                    <div className="p-4 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 space-y-3">
+                      {githubVerificationData.repositories.map((repo) => (
+                        <div key={repo.name} className="pt-3 first:pt-0 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <a
+                              href={repo.html_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-bold text-brand-600 dark:text-brand-400 hover:underline inline-flex items-center"
+                            >
+                              <FolderGit2 className="w-3.5 h-3.5 mr-1" />
+                              {repo.name}
+                              <ExternalLink className="w-3 h-3 ml-1 text-slate-400" />
+                            </a>
+                            <div className="flex items-center space-x-2 text-[11px] text-slate-500">
+                              {repo.primary_language && (
+                                <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                  {repo.primary_language}
+                                </span>
+                              )}
+                              <span>⭐ {repo.stars}</span>
+                            </div>
+                          </div>
+                          {repo.description && (
+                            <p className="text-xs text-slate-600 dark:text-slate-400">
+                              {repo.description}
+                            </p>
+                          )}
+                          {repo.detected_skills?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {repo.detected_skills.map((s) => (
+                                <span
+                                  key={s}
+                                  className="text-[10px] font-semibold px-2 py-0.5 rounded bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-900"
+                                >
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </Card>
 
         {/* Submit Actions Bottom */}

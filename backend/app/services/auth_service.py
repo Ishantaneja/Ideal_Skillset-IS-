@@ -7,6 +7,7 @@ from pymongo.errors import DuplicateKeyError
 
 from app.models.user import (
     SignupRequest,
+    RecruiterSignupRequest,
     LoginRequest,
     UserResponse,
     TokenResponse,
@@ -25,6 +26,16 @@ _IN_MEMORY_USERS: Dict[str, Dict[str, Any]] = {
         "email": "admin@idealskillset.com",
         "password_hash": hash_password("Admin1234!"),
         "role": "admin",
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    },
+    "recruiter@techhire.io": {
+        "_id": "recruiter_default_01",
+        "name": "Sarah Jenkins",
+        "email": "recruiter@techhire.io",
+        "password_hash": hash_password("Recruiter1234!"),
+        "role": "recruiter",
+        "company_name": "TechHire Global Talent",
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
     }
@@ -214,6 +225,146 @@ class AuthService:
             name=name,
             email=email_normalized,
             role=UserRole.ADMIN.value,
+            company_name=None,
+            created_at=user_doc.get("created_at"),
+            updated_at=user_doc.get("updated_at")
+        )
+
+        return TokenResponse(
+            access_token=token,
+            token_type="bearer",
+            user=user_response
+        )
+
+    @staticmethod
+    def register_recruiter(recruiter_in: RecruiterSignupRequest) -> TokenResponse:
+        """
+        Registers a new recruiter account into User_data with role='recruiter'.
+        """
+        email_normalized = str(recruiter_in.email).lower().strip()
+        users_col = mongo_manager.user_data
+        now = datetime.now(timezone.utc)
+
+        # 1. Check for existing user in MongoDB User_data
+        if users_col is not None:
+            existing = users_col.find_one({"email": email_normalized})
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="An account with this corporate email already exists"
+                )
+        elif email_normalized in _IN_MEMORY_USERS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="An account with this corporate email already exists"
+            )
+
+        # 2. Hash the password securely
+        pwd_hash = hash_password(recruiter_in.password)
+
+        # 3. Prepare MongoDB document (Strictly role='recruiter')
+        user_doc = {
+            "name": recruiter_in.name,
+            "email": email_normalized,
+            "password_hash": pwd_hash,
+            "role": UserRole.RECRUITER.value,
+            "company_name": recruiter_in.company_name,
+            "shortlisted_candidates": [],
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        user_id_str = ""
+        if users_col is not None:
+            try:
+                result = users_col.insert_one(user_doc)
+                user_id_str = str(result.inserted_id)
+            except DuplicateKeyError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="An account with this email already exists"
+                )
+        else:
+            user_id_str = f"rec_{len(_IN_MEMORY_USERS) + 1}_{int(now.timestamp())}"
+            user_doc["_id"] = user_id_str
+            _IN_MEMORY_USERS[email_normalized] = user_doc
+
+        # 4. Generate signed JWT token
+        token_payload = {
+            "sub": user_id_str,
+            "email": email_normalized,
+            "name": recruiter_in.name,
+            "role": UserRole.RECRUITER.value,
+            "company_name": recruiter_in.company_name,
+        }
+        token = create_access_token(token_payload)
+
+        # 5. Return TokenResponse
+        user_response = UserResponse(
+            id=user_id_str,
+            name=recruiter_in.name,
+            email=email_normalized,
+            role=UserRole.RECRUITER.value,
+            company_name=recruiter_in.company_name,
+            created_at=now,
+            updated_at=now
+        )
+
+        return TokenResponse(
+            access_token=token,
+            token_type="bearer",
+            user=user_response
+        )
+
+    @staticmethod
+    def authenticate_recruiter(login_data: LoginRequest) -> TokenResponse:
+        """
+        Authenticates recruiter credentials against User_data and verifies role=='recruiter' or 'admin'.
+        Rejects normal candidate users with 403 Forbidden.
+        """
+        email_normalized = str(login_data.email).lower().strip()
+        users_col = mongo_manager.user_data
+
+        user_doc = None
+        if users_col is not None:
+            user_doc = users_col.find_one({"email": email_normalized})
+        else:
+            user_doc = _IN_MEMORY_USERS.get(email_normalized)
+
+        # Verify existence and password hash
+        if not user_doc or not verify_password(login_data.password, user_doc.get("password_hash")):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid recruiter credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Verify recruiter or admin role
+        role = user_doc.get("role", "")
+        if role != UserRole.RECRUITER.value and role != "recruiter" and role != UserRole.ADMIN.value and role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access restricted: This portal is reserved for recruiters and employers. Candidate accounts cannot log in here.",
+            )
+
+        user_id = str(user_doc.get("_id", ""))
+        name = user_doc.get("name", "Recruiter")
+        company_name = user_doc.get("company_name", "Organization")
+
+        token = create_access_token({
+            "sub": user_id,
+            "email": email_normalized,
+            "name": name,
+            "role": role,
+            "company_name": company_name,
+        })
+
+        user_response = UserResponse(
+            id=user_id,
+            name=name,
+            email=email_normalized,
+            role=role,
+            company_name=company_name,
             created_at=user_doc.get("created_at"),
             updated_at=user_doc.get("updated_at")
         )
@@ -234,6 +385,7 @@ class AuthService:
             name=current_user.get("name", "User"),
             email=current_user.get("email", ""),
             role=current_user.get("role", "user"),
+            company_name=current_user.get("company_name"),
             created_at=current_user.get("created_at"),
             updated_at=current_user.get("updated_at")
         )

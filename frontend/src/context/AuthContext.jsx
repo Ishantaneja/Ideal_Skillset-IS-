@@ -36,6 +36,7 @@ export function AuthProvider({ children }) {
       initials,
       email: rawUser.email,
       role: rawUser.role || 'user',
+      companyName: rawUser.company_name || rawUser.companyName || '',
       targetRole: rawUser.targetRole || rawUser.target_role || 'Junior Data Analyst',
       readinessScore: rawUser.readinessScore || 74,
       atsScore: rawUser.atsScore || 78,
@@ -57,7 +58,7 @@ export function AuthProvider({ children }) {
             setToken(storedToken);
           }
         } catch {
-          // If token verification fails (e.g. backend offline or expired), retain safe default candidate profile
+          // If token verification fails, retain safe candidate state
         } finally {
           setIsLoading(false);
         }
@@ -92,11 +93,50 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const verifyOtpAndLogin = async ({ email, otp }) => {
+    setIsLoading(true);
+    try {
+      const data = await authService.verifySignupOtp({ email, otp });
+      const formatted = formatUserObj(data.user);
+      setUser(formatted);
+      setToken(data.access_token);
+      return data;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const adminLogin = async ({ email, password }) => {
     setIsLoading(true);
     try {
       const data = await authService.adminLogin({ email, password });
       const formatted = formatUserObj({ ...data.user, role: 'admin' });
+      setUser(formatted);
+      setToken(data.access_token);
+      return data;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const recruiterLogin = async ({ email, password }) => {
+    setIsLoading(true);
+    try {
+      const data = await authService.recruiterLogin({ email, password });
+      const formatted = formatUserObj({ ...data.user, role: 'recruiter' });
+      setUser(formatted);
+      setToken(data.access_token);
+      return data;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const recruiterSignup = async (userData) => {
+    setIsLoading(true);
+    try {
+      const data = await authService.recruiterSignup(userData);
+      const formatted = formatUserObj({ ...data.user, role: 'recruiter' });
       setUser(formatted);
       setToken(data.access_token);
       return data;
@@ -118,10 +158,14 @@ export function AuthProvider({ children }) {
         token,
         isAuthenticated: !!user,
         isAdmin: user?.role === 'admin',
+        isRecruiter: user?.role === 'recruiter',
         isLoading,
         login,
         signup,
+        verifyOtpAndLogin,
         adminLogin,
+        recruiterLogin,
+        recruiterSignup,
         logout,
         setUser,
       }}

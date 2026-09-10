@@ -67,11 +67,11 @@ export default function Interview() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center">
-            <MessageSquare className="w-6 h-6 text-brand-600 mr-2" /> AI Interview Simulator
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center">
+            <MessageSquare className="w-6 h-6 text-brand-600 dark:text-brand-400 mr-2" /> AI Interview Simulator
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Personalized behavioral and technical mock rounds tailored for <strong className="text-slate-800">{data.target_role}</strong>.
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Personalized behavioral and technical mock rounds tailored for <strong className="text-slate-800 dark:text-slate-200">{data.target_role}</strong>.
           </p>
         </div>
         <div className="flex items-center space-x-2">
@@ -156,39 +156,39 @@ export default function Interview() {
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-600">Communication Readiness</span>
-                  <span className="font-bold text-slate-900">{data.communication_score}%</span>
+                  <span className="text-slate-600 dark:text-slate-400">Communication Readiness</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{data.communication_score}%</span>
                 </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
                   <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${data.communication_score}%` }} />
                 </div>
               </div>
 
               <div>
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-600">Structured STAR Technique</span>
-                  <span className="font-bold text-slate-900">82%</span>
+                  <span className="text-slate-600 dark:text-slate-400">Structured STAR Technique</span>
+                  <span className="font-bold text-slate-900 dark:text-white">82%</span>
                 </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
                   <div className="bg-brand-500 h-full w-[82%] rounded-full" />
                 </div>
               </div>
 
               <div>
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-600">Technical Articulation</span>
-                  <span className="font-bold text-slate-900">75%</span>
+                  <span className="text-slate-600 dark:text-slate-400">Technical Articulation</span>
+                  <span className="font-bold text-slate-900 dark:text-white">75%</span>
                 </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
                   <div className="bg-blue-500 h-full w-[75%] rounded-full" />
                 </div>
               </div>
             </div>
 
-            <div className="mt-5 pt-4 border-t border-slate-100">
-              <h4 className="text-xs font-bold uppercase text-slate-500 mb-2">Personalized AI Feedback</h4>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                When answering technical queries for <strong className="text-slate-800">{data.target_role}</strong>, remember to state the specific business impact metrics (e.g. latency reduced, rows processed, revenue impacted) in your 'Result' step.
+            <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2">Personalized AI Feedback</h4>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                When answering technical queries for <strong className="text-slate-800 dark:text-slate-200">{data.target_role}</strong>, remember to state the specific business impact metrics (e.g. latency reduced, rows processed, revenue impacted) in your 'Result' step.
               </p>
             </div>
           </Card>

@@ -331,16 +331,16 @@ export default function JobAnalysis() {
                 e.preventDefault();
                 if (e.dataTransfer.files?.[0]) handleFileUpload(e.dataTransfer.files[0]);
               }}
-              className="border-2 border-dashed border-slate-300 hover:border-brand-500 bg-white hover:bg-slate-50/50 rounded-xl p-8 text-center cursor-pointer transition-colors"
+              className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 bg-white dark:bg-slate-900 hover:bg-slate-50/50 dark:hover:bg-slate-800/60 rounded-xl p-8 text-center cursor-pointer transition-colors"
             >
               <div className="max-w-md mx-auto space-y-2">
-                <div className="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto">
+                <div className="w-12 h-12 rounded-xl bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-400 flex items-center justify-center mx-auto">
                   <UploadCloud className="w-6 h-6" />
                 </div>
-                <p className="text-sm font-semibold text-slate-800">
-                  <span className="text-brand-600 underline">Click to upload</span> or drag & drop JD document
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  <span className="text-brand-600 dark:text-brand-400 underline">Click to upload</span> or drag & drop JD document
                 </p>
-                <p className="text-xs text-slate-400">PDF or DOCX • Maximum 10 MB</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">PDF or DOCX • Maximum 10 MB</p>
               </div>
               <input
                 ref={fileInputRef}
@@ -361,7 +361,7 @@ export default function JobAnalysis() {
           <div className="lg:col-span-4 space-y-6">
             <Card title="Job Analysis History" subtitle={`${jobs.length} analyzed job postings`}>
               {jobs.length === 0 ? (
-                <p className="text-xs text-slate-500 italic">No previous jobs analyzed.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 italic">No previous jobs analyzed.</p>
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                   {jobs.map((item) => (
@@ -369,27 +369,27 @@ export default function JobAnalysis() {
                       key={item.id}
                       className={`p-3 rounded-xl border text-xs flex items-center justify-between transition-colors ${
                         item.id === activeJob.id
-                          ? 'bg-brand-50/60 border-brand-300 shadow-2xs'
-                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                          ? 'bg-brand-50/60 dark:bg-brand-950/60 border-brand-300 dark:border-brand-700 shadow-2xs'
+                          : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'
                       }`}
                     >
                       <div
                         className="cursor-pointer overflow-hidden flex-1 mr-2"
                         onClick={() => fetchJobDetail(item.id)}
                       >
-                        <h4 className="font-bold text-slate-900 truncate">{item.job_title}</h4>
-                        <div className="flex items-center space-x-2 text-[11px] text-slate-500 mt-0.5">
+                        <h4 className="font-bold text-slate-900 dark:text-white truncate">{item.job_title}</h4>
+                        <div className="flex items-center space-x-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                           <span>{item.company_name || 'Organization'}</span>
                           {item.work_mode && <span>• {item.work_mode}</span>}
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
                           {new Date(item.created_at).toLocaleDateString()} • {item.required_skills_count} required skills
                         </p>
                       </div>
 
                       <button
                         onClick={() => handleDeleteJob(item.id)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 rounded transition-colors"
+                        className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-600 rounded transition-colors"
                         title="Delete Job Analysis"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -404,18 +404,18 @@ export default function JobAnalysis() {
           {/* Right Column: Structured Analysis Detail */}
           <div className="lg:col-span-8 space-y-6">
             {/* Header Job Detail Banner */}
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center space-x-2">
-                    <h2 className="text-xl font-bold text-slate-900">
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                       {jobInfo.job_title || 'Target Job Position'}
                     </h2>
                     <Badge variant="brand">Analyzed Requisition</Badge>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-2">
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-2">
                     {jobInfo.company_name && (
-                      <span className="flex items-center font-semibold text-slate-700">
+                      <span className="flex items-center font-semibold text-slate-700 dark:text-slate-300">
                         <Building2 className="w-3.5 h-3.5 mr-1 text-slate-400" /> {jobInfo.company_name}
                       </span>
                     )}
@@ -425,12 +425,12 @@ export default function JobAnalysis() {
                       </span>
                     )}
                     {jobInfo.work_mode && (
-                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">
+                      <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded font-medium">
                         {jobInfo.work_mode}
                       </span>
                     )}
                     {jobInfo.employment_type && (
-                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">
+                      <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded font-medium">
                         {jobInfo.employment_type}
                       </span>
                     )}
@@ -474,13 +474,13 @@ export default function JobAnalysis() {
             </div>
 
             {/* Requirement Tabs */}
-            <div className="flex items-center space-x-2 border-b border-slate-200 pb-2 overflow-x-auto text-xs font-semibold">
+            <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto text-xs font-semibold">
               <button
                 onClick={() => setSelectedTab('required_skills')}
                 className={`flex items-center px-3 py-1.5 rounded-lg transition-colors shrink-0 ${
                   selectedTab === 'required_skills'
                     ? 'bg-brand-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <Code2 className="w-3.5 h-3.5 mr-1.5" /> Required Skills ({reqs.required_skills?.length || 0})
@@ -490,7 +490,7 @@ export default function JobAnalysis() {
                 className={`flex items-center px-3 py-1.5 rounded-lg transition-colors shrink-0 ${
                   selectedTab === 'preferred_skills'
                     ? 'bg-brand-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <Star className="w-3.5 h-3.5 mr-1.5" /> Preferred Skills ({reqs.preferred_skills?.length || 0})

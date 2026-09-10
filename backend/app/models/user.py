@@ -1,17 +1,50 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator, HttpUrl
+from pydantic import BaseModel, EmailStr, Field, field_validator, HttpUrl, ConfigDict
 from enum import Enum
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from datetime import datetime, timezone
 
 
 class UserRole(str, Enum):
     USER = "user"
     ADMIN = "admin"
+    RECRUITER = "recruiter"
 
 
 # ---------------------------------------------------------------------------
 # Request Schemas
 # ---------------------------------------------------------------------------
+
+class RecruiterSignupRequest(BaseModel):
+    """
+    Schema for recruiter/employer account registration.
+    Sets role='recruiter'.
+    """
+    name: str = Field(..., min_length=2, max_length=100, description="Full recruiter name")
+    email: EmailStr = Field(..., description="Corporate/Work email address")
+    password: str = Field(..., min_length=6, max_length=128, description="Password (min 6 characters)")
+    company_name: str = Field(..., min_length=2, max_length=150, description="Company / Organization name")
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        cleaned = v.strip()
+        if len(cleaned) < 2:
+            raise ValueError("Name must be at least 2 characters long")
+        return cleaned
+
+    @field_validator("company_name")
+    @classmethod
+    def validate_company(cls, v: str) -> str:
+        cleaned = v.strip()
+        if len(cleaned) < 2:
+            raise ValueError("Company name must be at least 2 characters long")
+        return cleaned
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return str(v).lower().strip()
+
 
 class SignupRequest(BaseModel):
     """
@@ -30,6 +63,73 @@ class SignupRequest(BaseModel):
         if len(cleaned) < 2:
             raise ValueError("Name must be at least 2 characters long")
         return cleaned
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return str(v).lower().strip()
+
+
+class SignupOTPRequest(BaseModel):
+    """
+    Schema for requesting signup OTP.
+    Validates input credentials before generating and emailing OTP.
+    """
+    name: str = Field(..., min_length=2, max_length=100, description="Full candidate name")
+    email: EmailStr = Field(..., description="Unique email address")
+    password: str = Field(..., min_length=6, max_length=128, description="Password (min 6 characters)")
+    confirm_password: Optional[str] = Field(default=None, description="Confirm password matching field")
+    target_role: Optional[str] = Field(default="Junior Data Analyst", description="Target career role")
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        cleaned = v.strip()
+        if len(cleaned) < 2:
+            raise ValueError("Name must be at least 2 characters long")
+        return cleaned
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return str(v).lower().strip()
+
+    @field_validator("confirm_password")
+    @classmethod
+    def validate_confirm_password(cls, v: Optional[str], info) -> Optional[str]:
+        if v is not None:
+            password = info.data.get("password")
+            if password and v != password:
+                raise ValueError("Passwords do not match")
+        return v
+
+
+class VerifyOTPRequest(BaseModel):
+    """
+    Schema for verifying signup OTP and finalizing account creation.
+    """
+    email: EmailStr = Field(..., description="Candidate email address")
+    otp: str = Field(..., min_length=6, max_length=6, description="6-digit verification code")
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return str(v).lower().strip()
+
+    @field_validator("otp")
+    @classmethod
+    def validate_otp(cls, v: str) -> str:
+        cleaned = v.strip()
+        if not cleaned.isdigit() or len(cleaned) != 6:
+            raise ValueError("Verification code must be exactly 6 numeric digits")
+        return cleaned
+
+
+class ResendOTPRequest(BaseModel):
+    """
+    Schema for resending signup OTP.
+    """
+    email: EmailStr = Field(..., description="Candidate email address")
 
     @field_validator("email")
     @classmethod
@@ -81,7 +181,7 @@ class UserProfileUpdate(BaseModel):
     graduation_year: Optional[int] = Field(default=None, ge=1970, le=2040)
 
     # Experience & Career Goals
-    experience_level: Optional[str] = Field(default=None, max_length=50) # Entry, Junior, Mid, Senior
+    experience_level: Optional[str] = Field(default=None, max_length=50)
     years_of_experience: Optional[float] = Field(default=None, ge=0, le=60)
     current_job_title: Optional[str] = Field(default=None, max_length=100)
     target_role: Optional[str] = Field(default=None, max_length=100)
@@ -107,12 +207,11 @@ class UserResponse(BaseModel):
     name: str
     email: str
     role: str = "user"
+    company_name: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        populate_by_name = True
-        from_attributes = True
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
 class UserProfileResponse(BaseModel):
@@ -123,6 +222,7 @@ class UserProfileResponse(BaseModel):
     name: str
     email: str
     role: str = "user"
+    company_name: Optional[str] = None
     phone: Optional[str] = ""
     location: Optional[str] = ""
     country: Optional[str] = ""
@@ -150,9 +250,7 @@ class UserProfileResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        populate_by_name = True
-        from_attributes = True
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
 class TokenResponse(BaseModel):
@@ -162,6 +260,26 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+class SignupOTPResponse(BaseModel):
+    """
+    Response schema for OTP dispatch confirmation.
+    Never reveals the generated OTP.
+    """
+    message: str = "Verification code sent to your email."
+    email: str
+    expires_in: int = 600  # 10 minutes in seconds
+
+
+class SignupSuccessResponse(BaseModel):
+    """
+    Response schema upon successful OTP verification and account creation.
+    """
+    message: str = "Email verified successfully. Account created."
+    user: UserResponse
+    access_token: str
+    token_type: str = "bearer"
 
 
 # ---------------------------------------------------------------------------
@@ -177,6 +295,7 @@ class UserInDB(BaseModel):
     email: str
     password_hash: Optional[str] = None
     role: str = "user"
+    company_name: Optional[str] = None
     phone: Optional[str] = None
     location: Optional[str] = None
     country: Optional[str] = None
@@ -201,9 +320,7 @@ class UserInDB(BaseModel):
     created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    class Config:
-        populate_by_name = True
-        from_attributes = True
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
 # Aliases for backward compatibility

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Compass, Mail, Lock, Shield, ArrowRight, Loader2 } from 'lucide-react';
-import { Button, Input } from '@/components';
+import { Button, Input, ThemeToggle } from '@/components';
 import { ROUTES } from '@/utils/constants';
 import { useNotification, useDocumentTitle, useAuth } from '@/hooks';
 
@@ -33,26 +33,31 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 transition-colors duration-200 relative">
+      {/* Top Right Theme Toggle */}
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+        <ThemeToggle size="sm" />
+      </div>
+
       {/* Brand Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <Link to={ROUTES.HOME} className="inline-flex items-center space-x-2.5">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-600 to-primary-600 flex items-center justify-center text-white shadow-md">
             <Compass className="w-6 h-6" />
           </div>
-          <span className="text-2xl font-bold tracking-tight text-slate-900">Ideal Skillset</span>
+          <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Ideal Skillset</span>
         </Link>
-        <h2 className="mt-6 text-2xl font-extrabold text-slate-900 tracking-tight">
+        <h2 className="mt-6 text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
           Welcome back to Ideal Skillset
         </h2>
-        <p className="mt-2 text-xs text-slate-600">
+        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
           Sign in to access your personalized career readiness dashboard
         </p>
       </div>
 
       {/* Login Card */}
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4">
-        <div className="bg-white py-8 px-6 shadow-sm border border-slate-200/80 rounded-2xl sm:px-10">
+        <div className="bg-white dark:bg-slate-900 py-8 px-6 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl sm:px-10 transition-colors duration-200">
           <form className="space-y-5" onSubmit={handleSubmit}>
             <Input
               id="email"
@@ -78,7 +83,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => notify.info('Password reset instructions sent to email')}
-                  className="text-xs font-medium text-brand-600 hover:text-brand-700"
+                  className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
                 >
                   Forgot Password?
                 </button>
@@ -93,16 +98,16 @@ export default function Login() {
                 type="checkbox"
                 checked={formData.rememberMe}
                 onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
-                className="h-4 w-4 text-brand-600 focus:ring-brand-500 border-slate-300 rounded"
+                className="h-4 w-4 text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-700 rounded dark:bg-slate-800"
               />
-              <label htmlFor="remember-me" className="ml-2 block text-xs text-slate-600">
+              <label htmlFor="remember-me" className="ml-2 block text-xs text-slate-600 dark:text-slate-400">
                 Remember me for 30 days
               </label>
             </div>
 
             {/* Login Button */}
             <div>
-              <Button type="submit" variant="primary" className="w-full justify-center" disabled={submitting}>
+              <Button type="submit" variant="primary" className="w-full justify-center text-sm font-semibold" disabled={submitting}>
                 {submitting ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -116,25 +121,31 @@ export default function Login() {
           </form>
 
           {/* Sign Up Link */}
-          <div className="mt-6 pt-5 border-t border-slate-100 text-center">
-            <p className="text-xs text-slate-600">
+          <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 text-center">
+            <p className="text-xs text-slate-600 dark:text-slate-400">
               Don't have an account?{' '}
-              <Link to={ROUTES.SIGNUP} className="font-semibold text-brand-600 hover:text-brand-700">
+              <Link to={ROUTES.SIGNUP} className="font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
                 Sign Up
               </Link>
             </p>
           </div>
         </div>
 
-        {/* Distinct Admin Login Navigation */}
-        <div className="mt-6 text-center">
+        {/* Distinct Recruiter & Admin Login Navigation */}
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-2.5 text-center">
+          <Link
+            to={ROUTES.RECRUITER_LOGIN}
+            className="inline-flex items-center space-x-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-white bg-indigo-50/80 dark:bg-indigo-950/60 px-3.5 py-2 rounded-lg border border-indigo-200 dark:border-indigo-800 transition-colors shadow-xs"
+          >
+            <span>Recruiter Portal</span>
+            <ArrowRight className="w-3 h-3 text-indigo-400" />
+          </Link>
           <Link
             to={ROUTES.ADMIN_LOGIN}
-            className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 bg-white/80 px-3.5 py-2 rounded-lg border border-slate-200 transition-colors shadow-xs"
+            className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white bg-white/80 dark:bg-slate-900/80 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors shadow-xs"
           >
-            <Shield className="w-3.5 h-3.5 text-slate-600" />
-            <span>Admin Portal Login</span>
-            <ArrowRight className="w-3 h-3 text-slate-400" />
+            <Shield className="w-3.5 h-3.5 text-slate-500" />
+            <span>Admin Portal</span>
           </Link>
         </div>
       </div>

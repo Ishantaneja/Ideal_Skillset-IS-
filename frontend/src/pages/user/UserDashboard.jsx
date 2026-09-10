@@ -294,12 +294,12 @@ export default function UserDashboard() {
           />
 
           <Card title="AI Career Coach Guidance" subtitle="Personalized next milestone">
-            <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
+            <div className="space-y-3 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
               <p>
-                Candidate <strong className="text-slate-900">{candidateName}</strong>, closing the priority gap in <strong className="text-rose-600">{telemetry.topSkillGap}</strong> through your career roadmap will elevate your Readiness Twin above the <strong className="text-emerald-600">80% market threshold</strong>.
+                Candidate <strong className="text-slate-900 dark:text-white">{candidateName}</strong>, closing the priority gap in <strong className="text-rose-600 dark:text-rose-400">{telemetry.topSkillGap}</strong> through your career roadmap will elevate your Readiness Twin above the <strong className="text-emerald-600 dark:text-emerald-400">80% market threshold</strong>.
               </p>
-              <div className="p-3 bg-brand-50/60 rounded-xl border border-brand-200 text-brand-900 flex items-start space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-brand-600 shrink-0 mt-0.5" />
+              <div className="p-3 bg-brand-50/60 dark:bg-brand-950/40 rounded-xl border border-brand-200 dark:border-brand-800/80 text-brand-900 dark:text-brand-200 flex items-start space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-brand-600 dark:text-brand-400 shrink-0 mt-0.5" />
                 <span>
                   Tip: Committing code deliverables to GitHub directly boosts your <strong>Proof of Evidence</strong> dimension.
                 </span>
@@ -316,25 +316,25 @@ export default function UserDashboard() {
                 <Link
                   key={idx}
                   to={action.link}
-                  className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-sm hover:shadow-md hover:border-brand-300 transition-all group flex flex-col justify-between"
+                  className="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-brand-300 dark:hover:border-brand-500 transition-all group flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <div className="p-2 rounded-lg bg-slate-50 text-brand-600 border border-slate-100 group-hover:bg-brand-50 transition-colors">
+                      <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-brand-600 dark:text-brand-400 border border-slate-100 dark:border-slate-700 group-hover:bg-brand-50 dark:group-hover:bg-brand-950/60 transition-colors">
                         <ActionIcon className="w-4 h-4" />
                       </div>
-                      <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                         {action.badge}
                       </span>
                     </div>
-                    <h4 className="text-sm font-bold text-slate-900 group-hover:text-brand-600 transition-colors">
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
                       {action.title}
                     </h4>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                       {action.desc}
                     </p>
                   </div>
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-brand-600">
+                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-semibold text-brand-600 dark:text-brand-400">
                     <span>Open Module</span>
                     <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                   </div>
@@ -347,22 +347,22 @@ export default function UserDashboard() {
             title="Recent Activity & Verified Milestones"
             subtitle="Your latest progress across the Ideal SkillSet platform"
             action={
-              <Link to={ROUTES.ROADMAP} className="text-xs font-medium text-brand-600 hover:text-brand-700">
+              <Link to={ROUTES.ROADMAP} className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
                 View Full Pathway →
               </Link>
             }
           >
             <div className="space-y-3">
               {telemetry.recentMilestones.map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+                <div key={idx} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
                   <div className="flex items-center space-x-3">
-                    <Clock className="w-4 h-4 text-slate-400 shrink-0" />
+                    <Clock className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
                     <div>
-                      <p className="text-xs font-semibold text-slate-800">{item.name}</p>
-                      <p className="text-[11px] text-slate-400">{item.time}</p>
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{item.name}</p>
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500">{item.time}</p>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md border border-brand-100 shrink-0">
+                  <span className="text-xs font-bold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/60 px-2 py-0.5 rounded-md border border-brand-100 dark:border-brand-800 shrink-0">
                     {item.score}
                   </span>
                 </div>

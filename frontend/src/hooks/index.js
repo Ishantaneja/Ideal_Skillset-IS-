@@ -7,3 +7,4 @@ export { default as useNotification } from './useNotification';
 export * from './useDocumentTitle';
 export { default as useDocumentTitle } from './useDocumentTitle';
 
+export { useTheme } from '@/context/ThemeContext';

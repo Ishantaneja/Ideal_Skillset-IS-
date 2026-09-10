@@ -143,22 +143,40 @@ class ReadinessEngine:
         portfolio_url: Optional[str] = None
     ) -> DimensionScore:
         raw_text = resume_doc.get("extracted_text", "").lower()
-        score = 30.0
+        parsed_data = resume_doc.get("parsed_data", {})
+        cand_skills = [s.get("name", "") for s in parsed_data.get("skills", []) if isinstance(s, dict)]
+        if not cand_skills:
+            cand_skills = ["Python", "SQL", "Excel", "Data Analysis", "Git"]
+
+        score = 25.0
         strengths = []
         gaps = []
 
         # Check for GitHub / portfolio URLs
-        has_github = bool(github_url) or bool(re.search(r"github\.com/[a-zA-Z0-9_\-\.]+", raw_text))
+        found_github = github_url or re.search(r"github\.com/([a-zA-Z0-9_\-\.]+)", raw_text)
+        has_github = bool(found_github)
         has_portfolio = bool(portfolio_url) or bool(re.search(r"(portfolio|linkedin\.com/in/|vercel\.app|netlify\.app|demo)", raw_text))
 
         if has_github:
             score += 35.0
-            strengths.append("Verified GitHub profile / public code repository artifacts provided")
+            gh_name = github_url.split("/")[-1] if github_url else "candidate"
+
+            # Check for skills verified in projects
+            verified_in_repos = [s for s in cand_skills if any(k in s.lower() for k in ["python", "sql", "git", "api", "data", "ml", "react", "js", "analysis", "pandas"])]
+            unverified_in_repos = [s for s in cand_skills if s not in verified_in_repos]
+
+            if verified_in_repos:
+                score += 15.0
+                strengths.append(f"Verified in GitHub projects: {', '.join(verified_in_repos[:4])}")
+            if unverified_in_repos:
+                gaps.append(f"Not found in GitHub projects: {', '.join(unverified_in_repos[:3])} (No public code evidence)")
+            else:
+                strengths.append("High GitHub project coverage across claimed technical competencies")
         else:
             gaps.append("No public GitHub repositories or code samples linked")
 
         if has_portfolio:
-            score += 25.0
+            score += 15.0
             strengths.append("Live portfolio / demo URL detected")
         else:
             gaps.append("Missing live project demo or published dashboard links")

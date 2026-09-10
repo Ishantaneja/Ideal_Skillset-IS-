@@ -28,12 +28,12 @@ export default function ProgressBar({
   return (
     <div className={`w-full ${className}`}>
       {(label || showValue) && (
-        <div className="flex justify-between items-center mb-1.5 text-xs font-medium text-slate-700">
+        <div className="flex justify-between items-center mb-1.5 text-xs font-medium text-slate-700 dark:text-slate-300">
           <span>{label}</span>
-          {showValue && <span className="font-semibold text-slate-900">{percentage}%</span>}
+          {showValue && <span className="font-semibold text-slate-900 dark:text-slate-100">{percentage}%</span>}
         </div>
       )}
-      <div className={`w-full bg-slate-100 rounded-full overflow-hidden ${sizeClasses[size] || sizeClasses.md}`}>
+      <div className={`w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden ${sizeClasses[size] || sizeClasses.md}`}>
         <div
           className={`h-full rounded-full transition-all duration-500 ease-out ${colorClasses[color] || colorClasses.brand}`}
           style={{ width: `${percentage}%` }}
@@ -42,4 +42,3 @@ export default function ProgressBar({
     </div>
   );
 }
-

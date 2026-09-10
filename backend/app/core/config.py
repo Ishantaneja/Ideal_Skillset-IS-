@@ -26,6 +26,16 @@ class Settings(BaseSettings):
     # Frontend CORS Configuration
     FRONTEND_URL: str = "http://localhost:5173"
 
+    # SMTP & Email Configuration
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM_EMAIL: str = "noreply@idealskillset.com"
+    SMTP_FROM_NAME: str = "Ideal SkillSet"
+    SMTP_USE_TLS: bool = True
+    DEV_OTP_LOGGING: bool = False
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

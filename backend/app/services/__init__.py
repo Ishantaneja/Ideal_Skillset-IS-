@@ -1,4 +1,6 @@
 from .auth_service import auth_service
+from .email_service import EmailService
+from .otp_service import OTPService
 from .user_service import user_service
 from .storage_service import storage_service
 from .text_extractor import text_extractor
@@ -18,9 +20,12 @@ from .skill_engine import skill_engine
 from .evidence_engine import evidence_engine
 from .assessment_engine import assessment_engine
 from .interview_engine import interview_engine
+from .admin_service import admin_service, AdminService
 
 __all__ = [
     "auth_service",
+    "EmailService",
+    "OTPService",
     "user_service",
     "storage_service",
     "text_extractor",
@@ -46,4 +51,6 @@ __all__ = [
     "evidence_engine",
     "assessment_engine",
     "interview_engine",
+    "admin_service",
+    "AdminService",
 ]

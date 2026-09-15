@@ -63,6 +63,15 @@ class JobBlueprint(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class EvaluationWeights(BaseModel):
+    technical_skills: float = 0.35
+    experience: float = 0.25
+    practical_evidence: float = 0.15
+    assessment: float = 0.10
+    communication: float = 0.10
+    education: float = 0.05
+
+
 class RecruiterJobCreate(BaseModel):
     title: str = Field(..., min_length=2, max_length=150)
     description: str = Field(..., min_length=10)
@@ -73,6 +82,7 @@ class RecruiterJobCreate(BaseModel):
     salary_range: Optional[str] = None
     required_skills: Optional[List[str]] = Field(default_factory=list)
     preferred_skills: Optional[List[str]] = Field(default_factory=list)
+    weights: Optional[EvaluationWeights] = None
 
 
 class RecruiterJobUpdate(BaseModel):
@@ -87,6 +97,7 @@ class RecruiterJobUpdate(BaseModel):
     preferred_skills: Optional[List[str]] = None
     status: Optional[str] = None  # active, paused, closed
     blueprint: Optional[JobBlueprint] = None
+    weights: Optional[EvaluationWeights] = None
 
 
 class RecruiterJobResponse(BaseModel):
@@ -104,6 +115,7 @@ class RecruiterJobResponse(BaseModel):
     preferred_skills: List[str] = Field(default_factory=list)
     status: str = "active"
     blueprint: Optional[JobBlueprint] = None
+    weights: Optional[EvaluationWeights] = None
     applicant_count: int = 0
     shortlisted_count: int = 0
     created_at: datetime
@@ -121,6 +133,8 @@ class SkillVerificationItem(BaseModel):
     claimed_level: str = "Proficient"
     resume_evidence: str = "None"
     project_evidence: str = "None"
+    github_evidence: str = "None"
+    certificate_evidence: str = "None"
     experience_evidence: str = "None"
     assessment_evidence: str = "None"
     interview_evidence: str = "None"
@@ -153,6 +167,21 @@ class CandidateEvaluationScores(BaseModel):
     evidence_confidence: float = 0.0
 
 
+class CandidateSuccessMilestone(BaseModel):
+    period: str  # "0-30 days", "31-60 days", "61-90 days"
+    risk_level: str = "low"  # low, medium, high
+    focus_area: str = ""
+    recommendation: str = ""
+
+
+class CandidateUpskillFit(BaseModel):
+    current_fit: float = 0.0
+    potential_fit_after_training: float = 0.0
+    target_skill: str = ""
+    estimated_training_effort: str = "Moderate"  # Low, Moderate, Substantial
+    projected_ramp_up_weeks: int = 3
+
+
 class CandidateEvaluation(BaseModel):
     id: Optional[str] = None
     candidate_id: str
@@ -169,6 +198,9 @@ class CandidateEvaluation(BaseModel):
     consistency_checks: List[ConsistencyCheckItem] = Field(default_factory=list)
     summary_explanation: str = ""
     estimated_ramp_up: str = "2-4 weeks"
+    milestones: List[CandidateSuccessMilestone] = Field(default_factory=list)
+    upskill_fit: Optional[CandidateUpskillFit] = None
+    evaluation_version: str = "v1.0"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -216,6 +248,7 @@ class CandidateApplicationItem(BaseModel):
     key_strengths: List[str] = Field(default_factory=list)
     key_concerns: List[str] = Field(default_factory=list)
     has_github_verified: bool = False
+    has_cert_verified: bool = False
     is_shortlisted: bool = False
 
 
@@ -414,4 +447,179 @@ class RecruiterSettings(BaseModel):
     minutes_saved_per_resume: float = 3.5
     default_role_title: str = "Software Engineer"
     allow_ai_screening: bool = True
+
+
+# ---------------------------------------------------------------------------
+# What-If & Policy Simulation Models
+# ---------------------------------------------------------------------------
+
+class WhatIfSimulationRequest(BaseModel):
+    job_id: str
+    simulated_critical_skills: Optional[List[str]] = None
+    simulated_preferred_skills: Optional[List[str]] = None
+    simulated_required_experience_years: Optional[float] = None
+    simulated_weights: Optional[EvaluationWeights] = None
+    min_fit_threshold: float = 70.0
+
+
+class WhatIfSimulationResponse(BaseModel):
+    job_id: str
+    job_title: str
+    original_pool_count: int
+    simulated_pool_count: int
+    original_shortlisted_count: int
+    simulated_shortlisted_count: int
+    additional_candidates_count: int
+    critical_skill_coverage_original: float
+    critical_skill_coverage_simulated: float
+    average_fit_original: float
+    average_fit_simulated: float
+    talent_availability_impact: str
+    quality_tradeoff_summary: str
+    candidate_changes: List[Dict[str, Any]] = Field(default_factory=list)
+    is_simulated: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ---------------------------------------------------------------------------
+# Job Work Simulation Models
+# ---------------------------------------------------------------------------
+
+class SimulationScenarioType(str, Enum):
+    DEBUGGING = "debugging"
+    API_DESIGN = "api_design"
+    SYSTEM_ARCHITECTURE = "system_architecture"
+    PRODUCTION_INCIDENT = "production_incident"
+    DATA_PIPELINE = "data_pipeline"
+
+
+class JobWorkSimulation(BaseModel):
+    id: str
+    job_id: str
+    candidate_id: str
+    title: str
+    scenario_type: SimulationScenarioType = SimulationScenarioType.PRODUCTION_INCIDENT
+    difficulty: str = "Senior"
+    context_description: str
+    system_logs: Optional[str] = None
+    bug_report: Optional[str] = None
+    database_behavior: Optional[str] = None
+    api_requirements: Optional[str] = None
+    tasks_to_solve: List[str] = Field(default_factory=list)
+    evaluation_rubric: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class WorkSimulationSubmission(BaseModel):
+    simulation_id: str
+    candidate_id: str
+    job_id: str
+    response_text: str
+    technical_decisions: Optional[List[str]] = Field(default_factory=list)
+    code_snippets: Optional[str] = ""
+
+
+class WorkSimulationEvaluationResponse(BaseModel):
+    simulation_id: str
+    candidate_id: str
+    job_id: str
+    practical_readiness_score: float
+    technical_reasoning_score: float
+    debugging_score: float
+    architecture_score: float
+    communication_score: float
+    decision_quality_score: float
+    strengths: List[str] = Field(default_factory=list)
+    weaknesses: List[str] = Field(default_factory=list)
+    overall_summary: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ---------------------------------------------------------------------------
+# AI Recruiter Agent Models
+# ---------------------------------------------------------------------------
+
+class AgentWorkflowState(str, Enum):
+    PLANNING = "planning"
+    EXECUTING = "executing"
+    WAITING = "waiting"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class AgentToolCall(BaseModel):
+    tool_name: str
+    arguments: Dict[str, Any] = Field(default_factory=dict)
+    result_summary: str = ""
+    status: str = "success"  # success, error
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class AgentRunRequest(BaseModel):
+    prompt: str = Field(..., min_length=3)
+    job_id: Optional[str] = None
+    max_steps: int = 8
+
+
+class AgentRunResponse(BaseModel):
+    run_id: str
+    company_id: str
+    recruiter_id: str
+    request_prompt: str
+    state: AgentWorkflowState
+    tools_executed: List[AgentToolCall] = Field(default_factory=list)
+    action_plan: List[str] = Field(default_factory=list)
+    final_recommendation: str
+    data_payload: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Search & Feedback Models
+# ---------------------------------------------------------------------------
+
+class NLSearchRequest(BaseModel):
+    query: str = Field(..., min_length=3)
+    job_id: Optional[str] = None
+
+
+class CapabilitySearchRequest(BaseModel):
+    capability: Optional[str] = None
+    skills: List[str] = Field(default_factory=list)
+    min_confidence: float = 60.0
+    min_fit: Optional[float] = None
+    must_have_github: bool = False
+    must_have_certs: bool = False
+    stage: Optional[str] = None
+    job_id: Optional[str] = None
+
+
+class RecruiterFeedbackCreate(BaseModel):
+    candidate_id: str
+    job_id: str
+    evaluation_id: Optional[str] = None
+    agreed_with_ai: Optional[bool] = True
+    actual_outcome: Optional[str] = None
+    feedback_type: str = "helpful"  # helpful, not_helpful, incorrect, needs_review
+    feedback_notes: Optional[str] = ""
+    comment: Optional[str] = ""
+    calibration_tags: List[str] = Field(default_factory=list)
+
+
+class ScreeningJobResponse(BaseModel):
+    job_id: str
+    status: str = "completed"  # queued, processing, completed, failed, needs_review
+    total_resumes: int = 0
+    processed_resumes: int = 0
+    processed_count: int = 0
+    successful_resumes: int = 0
+    completed_count: int = 0
+    needs_review_count: int = 0
+    failed_resumes: int = 0
+    failed_count: int = 0
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 

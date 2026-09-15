@@ -7,11 +7,12 @@ from fastapi import UploadFile, HTTPException, status
 logger = logging.getLogger("uvicorn.error")
 
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
-ALLOWED_EXTENSIONS = {".pdf", ".docx"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 ALLOWED_MIME_TYPES = {
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/msword",
+    "text/plain",
     "application/octet-stream",  # Fallback for some Windows browsers
 }
 

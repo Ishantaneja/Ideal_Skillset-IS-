@@ -2,15 +2,20 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Building2,
-  Users,
   BookmarkCheck,
   LayoutDashboard,
   LogOut,
-  ArrowLeft,
   Search,
   Sparkles,
-  ShieldCheck,
+  Briefcase,
+  GitCompare,
+  Award,
+  Video,
+  BarChart3,
+  Settings,
   Compass,
+  Bot,
+  Sliders,
 } from 'lucide-react';
 import { ROUTES } from '@/utils/constants';
 import { useNotification, useAuth } from '@/hooks';
@@ -21,9 +26,17 @@ export default function RecruiterSidebar({ isOpen, onClose }) {
   const { user, logout } = useAuth();
 
   const navigationItems = [
-    { name: 'Recruiter Dashboard', href: ROUTES.RECRUITER_DASHBOARD, icon: LayoutDashboard },
-    { name: 'Candidate Discovery', href: ROUTES.RECRUITER_CANDIDATES, icon: Search },
+    { name: 'Command Center', href: ROUTES.RECRUITER_DASHBOARD, icon: LayoutDashboard },
+    { name: 'Job Requisitions', href: ROUTES.RECRUITER_JOBS, icon: Briefcase },
+    { name: 'Talent Pool', href: ROUTES.RECRUITER_CANDIDATES, icon: Search },
+    { name: 'AI Recruiter Agent', href: ROUTES.RECRUITER_AGENTS, icon: Bot },
+    { name: 'Simulations Studio', href: ROUTES.RECRUITER_SIMULATIONS, icon: Sliders },
+    { name: 'Compare Candidates', href: ROUTES.RECRUITER_COMPARE, icon: GitCompare },
+    { name: 'AI Assessments', href: ROUTES.RECRUITER_ASSESSMENTS, icon: Award },
+    { name: 'AI Interviews', href: ROUTES.RECRUITER_INTERVIEWS, icon: Video },
     { name: 'Shortlisted Talent', href: ROUTES.RECRUITER_SHORTLIST, icon: BookmarkCheck },
+    { name: 'Hiring Analytics', href: ROUTES.RECRUITER_ANALYTICS, icon: BarChart3 },
+    { name: 'Settings', href: ROUTES.RECRUITER_SETTINGS, icon: Settings },
   ];
 
   const handleLogout = () => {
@@ -56,10 +69,10 @@ export default function RecruiterSidebar({ isOpen, onClose }) {
               </div>
               <div>
                 <span className="text-sm font-black text-white tracking-tight block">
-                  Recruiter Portal
+                  Recruiter Copilot
                 </span>
                 <span className="text-[10px] font-semibold text-indigo-400 block tracking-wider uppercase">
-                  {user?.companyName || 'Ideal Skillset Talent'}
+                  {user?.companyName || 'Ideal Skillset'}
                 </span>
               </div>
             </div>
@@ -69,7 +82,7 @@ export default function RecruiterSidebar({ isOpen, onClose }) {
           <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
             <div className="space-y-1">
               <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Talent Acquisition
+                AI Hiring Suite
               </div>
               {navigationItems.map((item) => {
                 const Icon = item.icon;
@@ -98,10 +111,10 @@ export default function RecruiterSidebar({ isOpen, onClose }) {
             <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-950/60 to-purple-950/60 border border-indigo-800/50 text-slate-300 text-xs space-y-2">
               <div className="flex items-center space-x-2 text-indigo-300 font-bold text-[11px]">
                 <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                <span>5D Readiness Twin</span>
+                <span>Evidence Verification</span>
               </div>
               <p className="text-[11px] text-slate-300 leading-relaxed">
-                Filter candidates with verified GitHub repositories and verified code implementations.
+                Candidate skills are verified with GitHub code and certificates according to the JD blueprint.
               </p>
             </div>
           </div>
@@ -141,4 +154,3 @@ export default function RecruiterSidebar({ isOpen, onClose }) {
     </>
   );
 }
-

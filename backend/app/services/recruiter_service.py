@@ -14,6 +14,7 @@ from app.models.recruiter import (
     JobBlueprint,
     CandidateApplicationItem,
     ApplicationStage,
+    NextActionRecommendation,
     CandidateEvaluation,
     CandidateComparisonResponse,
     GeneratedAssessment,
@@ -22,7 +23,22 @@ from app.models.recruiter import (
     RecruiterDashboardResponse,
     JobInsightsResponse,
     RecruiterAnalyticsResponse,
-    RecruiterSettings
+    RecruiterSettings,
+    EvaluationWeights,
+    WhatIfSimulationRequest,
+    WhatIfSimulationResponse,
+    JobWorkSimulation,
+    WorkSimulationSubmission,
+    WorkSimulationEvaluationResponse,
+    SimulationScenarioType,
+    AgentRunRequest,
+    AgentRunResponse,
+    AgentToolCall,
+    AgentWorkflowState,
+    NLSearchRequest,
+    CapabilitySearchRequest,
+    RecruiterFeedbackCreate,
+    ScreeningJobResponse,
 )
 from app.services.ai.job_analyzer import job_analyzer
 from app.services.ai.resume_evaluator import resume_evaluator
@@ -31,6 +47,9 @@ from app.services.ai.assessment_generator import assessment_generator
 from app.services.ai.interview_generator import interview_generator
 from app.services.ai.interview_analyzer import interview_analyzer
 from app.services.ai.hiring_recommendation import hiring_recommendation_engine
+from app.services.ai.nl_search_parser import nl_search_parser
+from app.services.ai.simulation_analyzer import simulation_analyzer
+from app.services.ai.hiring_agent import hiring_agent
 from app.services.storage_service import storage_service
 from app.services.text_extractor import text_extractor
 from app.services.resume_parser import resume_parser
@@ -54,6 +73,11 @@ _IN_MEMORY_RECRUITER_JOBS: Dict[str, Dict[str, Any]] = {}
 _IN_MEMORY_APPLICATIONS: Dict[str, Dict[str, Any]] = {}
 _IN_MEMORY_EVALUATIONS: Dict[str, Dict[str, Any]] = {}
 _IN_MEMORY_ACTIVITIES: List[Dict[str, Any]] = []
+_IN_MEMORY_AGENT_RUNS: Dict[str, Dict[str, Any]] = {}
+_IN_MEMORY_SIMULATIONS: Dict[str, Dict[str, Any]] = {}
+_IN_MEMORY_WORK_SIMULATIONS: Dict[str, Dict[str, Any]] = {}
+_IN_MEMORY_FEEDBACK: List[Dict[str, Any]] = []
+_IN_MEMORY_SCREENING_JOBS: Dict[str, Dict[str, Any]] = {}
 
 def sanitize_mongo_doc(obj: Any) -> Any:
     if isinstance(obj, ObjectId):
@@ -295,6 +319,9 @@ class RecruiterService:
             bp_raw = j.get("blueprint")
             blueprint = JobBlueprint(**bp_raw) if bp_raw else None
 
+            weights_raw = j.get("weights")
+            weights_obj = EvaluationWeights(**weights_raw) if weights_raw else EvaluationWeights()
+
             results.append(RecruiterJobResponse(
                 id=j_id,
                 company_id=j.get("company_id", company_id),
@@ -310,6 +337,7 @@ class RecruiterService:
                 preferred_skills=j.get("preferred_skills", []),
                 status=j.get("status", "active"),
                 blueprint=blueprint,
+                weights=weights_obj,
                 applicant_count=app_count,
                 shortlisted_count=short_count,
                 created_at=j.get("created_at", datetime.now(timezone.utc)),
@@ -361,6 +389,9 @@ class RecruiterService:
             app_count = len(comp_apps)
             short_count = sum(1 for a in comp_apps if a.get("current_stage") in ["shortlisted", "interview", "offer", "hired"])
 
+        weights_raw = job_doc.get("weights")
+        weights_obj = EvaluationWeights(**weights_raw) if weights_raw else EvaluationWeights()
+
         return RecruiterJobResponse(
             id=j_id,
             company_id=company_id,
@@ -376,6 +407,7 @@ class RecruiterService:
             preferred_skills=job_doc.get("preferred_skills", []),
             status=job_doc.get("status", "active"),
             blueprint=blueprint,
+            weights=weights_obj,
             applicant_count=app_count,
             shortlisted_count=short_count,
             created_at=job_doc.get("created_at", datetime.now(timezone.utc)),
@@ -716,12 +748,12 @@ class RecruiterService:
             if "@" not in line and "http" not in line.lower() and len(line) < 40 and not line.lower().startswith("resume"):
                 # Clean up punctuation
                 clean = re.sub(r"[^a-zA-Z\s]", "", line).strip()
-                if 2 < len(clean.split()) <= 4:
+                if 2 <= len(clean.split()) <= 4:
                     cand_name = clean.title()
                     break
 
         if cand_name == "Candidate Applicant":
-            clean_fn = re.sub(r"[-_.]+", " ", filename).replace("resume", "").replace("pdf", "").replace("docx", "").strip()
+            clean_fn = re.sub(r"[-_.]+", " ", filename).lower().replace("resume", "").replace("pdf", "").replace("docx", "").replace("txt", "").strip()
             if clean_fn:
                 cand_name = clean_fn.title()
 
@@ -792,6 +824,7 @@ class RecruiterService:
             exp_level = cand_user.get("experience_level", "Junior (1-3 yrs)") if cand_user else "Junior"
             gh_url = cand_user.get("github_url", "") if cand_user else ""
             has_gh = bool(cand_user and (cand_user.get("github_verification") or gh_url))
+            has_cert = bool(cand_user and (cand_user.get("certifications") or cand_user.get("certificates") or cand_user.get("certificate_verification")))
 
             # Fetch Evaluation
             eval_doc = None
@@ -818,7 +851,13 @@ class RecruiterService:
             relevant_exp = float(scores.get("relevant_experience", 70.0))
             conf = float(scores.get("evidence_confidence", 70.0))
             readiness = float(scores.get("role_readiness", 75.0))
-            action = eval_doc.get("recommended_action", "VERIFY SKILLS") if eval_doc else "VERIFY SKILLS"
+            raw_action = eval_doc.get("recommended_action", "VERIFY SKILLS") if eval_doc else "VERIFY SKILLS"
+            if isinstance(raw_action, NextActionRecommendation):
+                rec_action = raw_action
+            elif isinstance(raw_action, str) and raw_action in NextActionRecommendation._value2member_map_:
+                rec_action = NextActionRecommendation(raw_action)
+            else:
+                rec_action = NextActionRecommendation.VERIFY_SKILLS
             strengths = eval_doc.get("strengths", []) if eval_doc else []
             concerns = eval_doc.get("concerns", []) if eval_doc else []
 
@@ -851,10 +890,11 @@ class RecruiterService:
                 relevant_experience=relevant_exp,
                 evidence_confidence=conf,
                 readiness_score=readiness,
-                recommended_action=action,
+                recommended_action=rec_action,
                 key_strengths=strengths[:2],
                 key_concerns=concerns[:2],
                 has_github_verified=has_gh,
+                has_cert_verified=has_cert,
                 is_shortlisted=(cand_id in shortlisted_set)
             ))
 
@@ -1696,5 +1736,630 @@ class RecruiterService:
             )
         return cls.get_settings(current_recruiter)
 
+    # =========================================================================
+    # Evaluation Weights Management
+    # =========================================================================
+    @classmethod
+    def update_job_weights(
+        cls,
+        current_recruiter: Dict[str, Any],
+        job_id: str,
+        weights: EvaluationWeights
+    ) -> RecruiterJobResponse:
+        """
+        Updates custom evaluation weights for a job requisition under company isolation.
+        Triggers re-evaluation of applicant fit scores against the new weighting scheme.
+        """
+        job = cls.get_job(current_recruiter, job_id)
+        company_id = job.company_id
+        jobs_col = mongo_manager.jobs
+        evals_col = mongo_manager.candidate_evaluations
+        now = datetime.now(timezone.utc)
+
+        weights_dict = weights.model_dump()
+        if jobs_col is not None:
+            query = {"_id": ObjectId(job_id)} if ObjectId.is_valid(job_id) else {"_id": job_id}
+            jobs_col.update_one(query, {"$set": {"weights": weights_dict, "updated_at": now}})
+
+        if job_id in _IN_MEMORY_RECRUITER_JOBS:
+            _IN_MEMORY_RECRUITER_JOBS[job_id]["weights"] = weights_dict
+            _IN_MEMORY_RECRUITER_JOBS[job_id]["updated_at"] = now
+
+        # Re-score existing evaluations with updated weights
+        if evals_col is not None:
+            try:
+                evals = list(evals_col.find({"job_id": job_id}))
+                for ev in evals:
+                    scores = ev.get("scores", {})
+                    tech = float(scores.get("technical_skills", 75.0))
+                    exp = float(scores.get("relevant_experience", 70.0))
+                    evid = float(scores.get("practical_evidence", 70.0))
+                    asm = float(scores.get("assessment_readiness", 70.0))
+                    comm = float(scores.get("communication_clarity", 75.0))
+                    edu = float(scores.get("education_background", 75.0))
+
+                    new_overall = round(
+                        tech * weights.technical_skills +
+                        exp * weights.experience +
+                        evid * weights.practical_evidence +
+                        asm * weights.assessment +
+                        comm * weights.communication +
+                        edu * weights.education,
+                        1
+                    )
+                    evals_col.update_one(
+                        {"_id": ev["_id"]},
+                        {"$set": {"scores.overall_fit": new_overall, "updated_at": now}}
+                    )
+            except Exception as e:
+                logger.warning(f"Error updating evaluations with new weights: {e}")
+
+        for k, v in _IN_MEMORY_EVALUATIONS.items():
+            if v.get("job_id") == job_id:
+                scores = v.get("scores", {})
+                tech = float(scores.get("technical_skills", 75.0))
+                exp = float(scores.get("relevant_experience", 70.0))
+                evid = float(scores.get("practical_evidence", 70.0))
+                asm = float(scores.get("assessment_readiness", 70.0))
+                comm = float(scores.get("communication_clarity", 75.0))
+                edu = float(scores.get("education_background", 75.0))
+                scores["overall_fit"] = round(
+                    tech * weights.technical_skills +
+                    exp * weights.experience +
+                    evid * weights.practical_evidence +
+                    asm * weights.assessment +
+                    comm * weights.communication +
+                    edu * weights.education,
+                    1
+                )
+                v["scores"] = scores
+
+        cls.log_activity(
+            company_id=company_id,
+            recruiter_id=str(current_recruiter.get("id", "")),
+            action="UPDATED_JOB_WEIGHTS",
+            entity_type="job",
+            entity_id=job_id,
+            metadata={"weights": weights_dict}
+        )
+
+        return cls.get_job(current_recruiter, job_id)
+
+    # =========================================================================
+    # Natural Language & Capability Candidate Search
+    # =========================================================================
+    @classmethod
+    def search_candidates_natural_language(
+        cls,
+        current_recruiter: Dict[str, Any],
+        request: NLSearchRequest
+    ) -> Dict[str, Any]:
+        """
+        Parses recruiter's natural language request and executes structured search
+        bounded by company talent pool isolation.
+        """
+        parsed = nl_search_parser.parse_query(request.query)
+        company_id = cls.resolve_company_id(current_recruiter)
+
+        # Retrieve talent pool across company jobs or specified job
+        target_jobs = []
+        if request.job_id:
+            try:
+                target_jobs.append(cls.get_job(current_recruiter, request.job_id))
+            except Exception:
+                pass
+        if not target_jobs:
+            target_jobs = cls.list_jobs(current_recruiter)
+
+        all_candidates_map: Dict[str, Dict[str, Any]] = {}
+        for j in target_jobs:
+            applicants = cls.list_job_applicants(current_recruiter, j.id)
+            for app in applicants:
+                cand_id = app.candidate_id
+                if cand_id not in all_candidates_map:
+                    all_candidates_map[cand_id] = {
+                        "applicant_item": app,
+                        "job_id": j.id,
+                        "job_title": j.title
+                    }
+
+        matched_candidates = []
+        for cand_id, data in all_candidates_map.items():
+            app: CandidateApplicationItem = data["applicant_item"]
+            
+            # Resolve candidate user skills & evaluations for full corpus matching
+            users_col = mongo_manager.user_data
+            evals_col = mongo_manager.candidate_evaluations
+            cand_user = None
+            if users_col is not None:
+                if ObjectId.is_valid(cand_id):
+                    cand_user = users_col.find_one({"_id": ObjectId(cand_id)})
+                if not cand_user:
+                    cand_user = users_col.find_one({"_id": cand_id})
+            if not cand_user:
+                cand_user = _IN_MEMORY_USERS.get(cand_id)
+
+            cand_skills = cand_user.get("skills", []) if cand_user else []
+
+            eval_doc = None
+            if evals_col is not None:
+                eval_doc = evals_col.find_one({"candidate_id": cand_id, "job_id": data["job_id"]})
+            if not eval_doc:
+                eval_doc = _IN_MEMORY_EVALUATIONS.get(f"{cand_id}_{data['job_id']}")
+
+            eval_skills = []
+            if eval_doc and "skill_breakdown" in eval_doc:
+                eval_skills = [sb.get("skill_name", "") for sb in eval_doc["skill_breakdown"]]
+
+            cand_corpus = (
+                f"{app.name} {data['job_title']} "
+                f"{' '.join(app.key_strengths)} {' '.join(app.key_concerns)} "
+                f"{' '.join(cand_skills)} {' '.join(eval_skills)}"
+            ).lower()
+
+            # Check target role
+            if parsed.get("target_role"):
+                req_role = parsed["target_role"].lower().strip()
+                role_words = req_role.split()
+                jt_low = data["job_title"].lower()
+                role_match = (
+                    req_role in jt_low or
+                    all(w in jt_low for w in role_words) or
+                    req_role in app.name.lower() or
+                    req_role in app.experience_level.lower() or
+                    req_role in cand_corpus
+                )
+                if not role_match and not parsed.get("skills"):
+                    continue
+
+            # Check skills
+            if parsed.get("skills"):
+                req_skills = [s.lower() for s in parsed["skills"]]
+                has_any_skill = any(s in cand_corpus for s in req_skills)
+                if not has_any_skill:
+                    continue
+
+            # Check minimum readiness / fit
+            if parsed.get("min_readiness") is not None:
+                if app.overall_fit < parsed["min_readiness"]:
+                    continue
+
+            # Check minimum years of experience
+            if parsed.get("min_years_experience") is not None:
+                exp_map = {"Junior": 2.0, "Mid": 4.0, "Senior": 7.0, "Lead": 9.0}
+                cand_years = 2.0
+                for lvl, yrs in exp_map.items():
+                    if lvl.lower() in app.experience_level.lower():
+                        cand_years = yrs
+                        break
+                if cand_years < parsed["min_years_experience"]:
+                    continue
+
+            # Check verified flags
+            if parsed.get("verified_github_only") and not app.has_github_verified:
+                continue
+            if parsed.get("verified_certs_only") and not app.has_cert_verified:
+                continue
+
+            matched_candidates.append({
+                "candidate_id": app.candidate_id,
+                "application_id": app.application_id,
+                "name": app.name,
+                "email": app.email,
+                "location": app.location,
+                "experience_level": app.experience_level,
+                "job_id": data["job_id"],
+                "job_title": data["job_title"],
+                "overall_fit": app.overall_fit,
+                "technical_skills": app.technical_skills,
+                "evidence_confidence": app.evidence_confidence,
+                "has_github_verified": app.has_github_verified,
+                "has_cert_verified": app.has_cert_verified,
+                "current_stage": app.current_stage,
+                "recommended_action": app.recommended_action,
+                "key_strengths": app.key_strengths,
+                "is_shortlisted": app.is_shortlisted
+            })
+
+        matched_candidates.sort(key=lambda x: x["overall_fit"], reverse=True)
+
+        return {
+            "query": request.query,
+            "parsed_criteria": parsed,
+            "total_found": len(matched_candidates),
+            "candidates": matched_candidates
+        }
+
+    @classmethod
+    def search_candidates_capability(
+        cls,
+        current_recruiter: Dict[str, Any],
+        request: CapabilitySearchRequest
+    ) -> Dict[str, Any]:
+        """
+        Filters candidates by explicit multi-source capabilities and verification flags.
+        """
+        company_id = cls.resolve_company_id(current_recruiter)
+        jobs = [cls.get_job(current_recruiter, request.job_id)] if request.job_id else cls.list_jobs(current_recruiter)
+
+        matches = []
+        for j in jobs:
+            applicants = cls.list_job_applicants(current_recruiter, j.id)
+            for app in applicants:
+                if request.min_fit is not None and app.overall_fit < request.min_fit:
+                    continue
+                if request.must_have_github and not app.has_github_verified:
+                    continue
+                if request.must_have_certs and not app.has_cert_verified:
+                    continue
+                if request.stage and app.current_stage.lower() != request.stage.lower():
+                    continue
+
+                users_col = mongo_manager.user_data
+                evals_col = mongo_manager.candidate_evaluations
+                cand_user = None
+                if users_col is not None:
+                    if ObjectId.is_valid(app.candidate_id):
+                        cand_user = users_col.find_one({"_id": ObjectId(app.candidate_id)})
+                    if not cand_user:
+                        cand_user = users_col.find_one({"_id": app.candidate_id})
+                if not cand_user:
+                    cand_user = _IN_MEMORY_USERS.get(app.candidate_id)
+
+                cand_skills = cand_user.get("skills", []) if cand_user else []
+
+                eval_doc = None
+                if evals_col is not None:
+                    eval_doc = evals_col.find_one({"candidate_id": app.candidate_id, "job_id": j.id})
+                if not eval_doc:
+                    eval_doc = _IN_MEMORY_EVALUATIONS.get(f"{app.candidate_id}_{j.id}")
+
+                eval_skills = []
+                if eval_doc and "skill_breakdown" in eval_doc:
+                    eval_skills = [sb.get("skill_name", "") for sb in eval_doc["skill_breakdown"]]
+
+                cand_corpus = (
+                    f"{app.name} {j.title} "
+                    f"{' '.join(app.key_strengths)} {' '.join(app.key_concerns)} "
+                    f"{' '.join(cand_skills)} {' '.join(eval_skills)}"
+                ).lower()
+
+                req_skills = list(request.skills)
+                if request.capability:
+                    req_skills.append(request.capability)
+                if req_skills:
+                    matched_req = [s for s in req_skills if s.lower() in cand_corpus]
+                    if not matched_req:
+                        continue
+
+                matches.append({
+                    "candidate_id": app.candidate_id,
+                    "application_id": app.application_id,
+                    "name": app.name,
+                    "email": app.email,
+                    "location": app.location,
+                    "experience_level": app.experience_level,
+                    "job_id": j.id,
+                    "job_title": j.title,
+                    "overall_fit": app.overall_fit,
+                    "technical_skills": app.technical_skills,
+                    "evidence_confidence": app.evidence_confidence,
+                    "has_github_verified": app.has_github_verified,
+                    "has_cert_verified": app.has_cert_verified,
+                    "current_stage": app.current_stage,
+                    "recommended_action": app.recommended_action,
+                    "key_strengths": app.key_strengths,
+                    "is_shortlisted": app.is_shortlisted
+                })
+
+        matches.sort(key=lambda x: x["overall_fit"], reverse=True)
+        return {
+            "total_found": len(matches),
+            "candidates": matches
+        }
+
+    # =========================================================================
+    # What-If Policy & Requirements Simulation
+    # =========================================================================
+    @classmethod
+    def run_what_if_simulation(
+        cls,
+        current_recruiter: Dict[str, Any],
+        request: WhatIfSimulationRequest
+    ) -> WhatIfSimulationResponse:
+        """
+        Runs a What-If requirements simulation without mutating live job requisitions.
+        """
+        job = cls.get_job(current_recruiter, request.job_id)
+        applicants = cls.list_job_applicants(current_recruiter, request.job_id)
+        
+        job_doc = job.model_dump()
+        app_dicts = [a.model_dump() for a in applicants]
+
+        sim_response = simulation_analyzer.run_what_if_simulation(
+            job_doc=job_doc,
+            applicants=app_dicts,
+            request=request
+        )
+
+        sim_col = mongo_manager.simulation_runs
+        sim_data = sim_response.model_dump()
+        sim_data["company_id"] = job.company_id
+        sim_data["recruiter_id"] = str(current_recruiter.get("id", ""))
+        
+        if sim_col is not None:
+            try:
+                sim_col.insert_one(sim_data)
+            except Exception as e:
+                logger.warning(f"Error persisting simulation run: {e}")
+
+        sim_key = f"{request.job_id}_{datetime.now(timezone.utc).timestamp()}"
+        _IN_MEMORY_SIMULATIONS[sim_key] = sim_data
+
+        cls.log_activity(
+            company_id=job.company_id,
+            recruiter_id=str(current_recruiter.get("id", "")),
+            action="RAN_WHAT_IF_SIMULATION",
+            entity_type="job",
+            entity_id=request.job_id,
+            metadata={
+                "delta_shortlisted": sim_response.additional_candidates_count,
+                "simulated_shortlisted": sim_response.simulated_shortlisted_count
+            }
+        )
+
+        return sim_response
+
+    # =========================================================================
+    # Job Work Simulations (Scenario Generation & Evaluation)
+    # =========================================================================
+    @classmethod
+    def generate_job_work_simulation(
+        cls,
+        current_recruiter: Dict[str, Any],
+        candidate_id: str,
+        job_id: str,
+        scenario_type: SimulationScenarioType = SimulationScenarioType.PRODUCTION_INCIDENT
+    ) -> JobWorkSimulation:
+        """
+        Generates a realistic day-in-the-life work simulation challenge.
+        """
+        job = cls.get_job(current_recruiter, job_id)
+        users_col = mongo_manager.user_data
+        cand_user = None
+        if users_col is not None and ObjectId.is_valid(candidate_id):
+            cand_user = users_col.find_one({"_id": ObjectId(candidate_id)})
+        if not cand_user:
+            cand_user = _IN_MEMORY_USERS.get(candidate_id, {
+                "_id": candidate_id,
+                "name": "Candidate Applicant",
+                "skills": job.required_skills or ["Python", "FastAPI"]
+            })
+
+        simulation = simulation_analyzer.generate_work_simulation(
+            job_doc=job.model_dump(),
+            candidate_doc=cand_user,
+            scenario_type=scenario_type
+        )
+
+        work_col = mongo_manager.work_simulations
+        sim_doc = simulation.model_dump()
+        sim_doc["company_id"] = job.company_id
+        sim_doc["recruiter_id"] = str(current_recruiter.get("id", ""))
+
+        if work_col is not None:
+            try:
+                work_col.insert_one(sim_doc)
+            except Exception as e:
+                logger.warning(f"Error persisting work simulation: {e}")
+
+        _IN_MEMORY_WORK_SIMULATIONS[simulation.id] = sim_doc
+
+        cls.log_activity(
+            company_id=job.company_id,
+            recruiter_id=str(current_recruiter.get("id", "")),
+            action="GENERATED_WORK_SIMULATION",
+            entity_type="work_simulation",
+            entity_id=simulation.id,
+            metadata={"candidate_id": candidate_id, "scenario_type": scenario_type.value}
+        )
+
+        return simulation
+
+    @classmethod
+    def evaluate_job_work_simulation(
+        cls,
+        current_recruiter: Dict[str, Any],
+        submission: WorkSimulationSubmission
+    ) -> WorkSimulationEvaluationResponse:
+        """
+        Evaluates the candidate's simulation response text and technical decisions.
+        """
+        sim_data = _IN_MEMORY_WORK_SIMULATIONS.get(submission.simulation_id)
+        work_col = mongo_manager.work_simulations
+        if not sim_data and work_col is not None:
+            try:
+                sim_data = work_col.find_one({"id": submission.simulation_id})
+            except Exception:
+                pass
+
+        if not sim_data:
+            job = cls.get_job(current_recruiter, submission.job_id)
+            simulation = simulation_analyzer.generate_work_simulation(
+                job_doc=job.model_dump(),
+                candidate_doc={"_id": submission.candidate_id, "name": "Candidate"}
+            )
+        else:
+            simulation = JobWorkSimulation(**sim_data)
+
+        eval_response = simulation_analyzer.evaluate_work_simulation(
+            simulation=simulation,
+            submission=submission
+        )
+
+        company_id = cls.resolve_company_id(current_recruiter)
+        cls.log_activity(
+            company_id=company_id,
+            recruiter_id=str(current_recruiter.get("id", "")),
+            action="EVALUATED_WORK_SIMULATION",
+            entity_type="work_simulation",
+            entity_id=submission.simulation_id,
+            metadata={
+                "candidate_id": submission.candidate_id,
+                "practical_readiness": eval_response.practical_readiness_score
+            }
+        )
+
+        return eval_response
+
+    # =========================================================================
+    # Autonomous AI Recruiter Agent
+    # =========================================================================
+    @classmethod
+    async def execute_agent_run(
+        cls,
+        current_recruiter: Dict[str, Any],
+        request: AgentRunRequest
+    ) -> AgentRunResponse:
+        """
+        Dispatches prompt to autonomous AI Recruiter Agent under company isolation.
+        """
+        response = await hiring_agent.execute_agent_run(
+            current_recruiter=current_recruiter,
+            request=request,
+            recruiter_service_ref=cls
+        )
+
+        agent_col = mongo_manager.agent_runs
+        run_data = response.model_dump()
+        if agent_col is not None:
+            try:
+                agent_col.insert_one(run_data)
+            except Exception as e:
+                logger.warning(f"Error persisting agent run: {e}")
+
+        _IN_MEMORY_AGENT_RUNS[response.run_id] = run_data
+
+        cls.log_activity(
+            company_id=response.company_id,
+            recruiter_id=response.recruiter_id,
+            action="EXECUTED_AGENT_RUN",
+            entity_type="agent_run",
+            entity_id=response.run_id,
+            metadata={"prompt": request.prompt, "tools_count": len(response.tools_executed)}
+        )
+
+        return response
+
+    @classmethod
+    def get_agent_run(
+        cls,
+        current_recruiter: Dict[str, Any],
+        run_id: str
+    ) -> AgentRunResponse:
+        """
+        Retrieves agent run results and reasoning transcript under company isolation.
+        """
+        company_id = cls.resolve_company_id(current_recruiter)
+        agent_col = mongo_manager.agent_runs
+        run_data = None
+        if agent_col is not None:
+            try:
+                run_data = agent_col.find_one({"run_id": run_id, "company_id": company_id})
+            except Exception:
+                pass
+
+        if not run_data:
+            run_data = _IN_MEMORY_AGENT_RUNS.get(run_id)
+            if run_data and run_data.get("company_id") != company_id:
+                run_data = None
+
+        if not run_data:
+            raise HTTPException(status_code=404, detail="Agent run not found or unauthorized.")
+
+        return AgentRunResponse(**run_data)
+
+    # =========================================================================
+    # Recruiter Feedback & Screening Job Status
+    # =========================================================================
+    @classmethod
+    def record_feedback(
+        cls,
+        current_recruiter: Dict[str, Any],
+        feedback_in: RecruiterFeedbackCreate
+    ) -> Dict[str, Any]:
+        """
+        Records human recruiter calibration feedback on candidate evaluations.
+        """
+        company_id = cls.resolve_company_id(current_recruiter)
+        recruiter_id = str(current_recruiter.get("id", ""))
+        feedback_id = f"fb_{uuid.uuid4().hex[:10]}"
+        now = datetime.now(timezone.utc)
+
+        fb_doc = {
+            "feedback_id": feedback_id,
+            "company_id": company_id,
+            "recruiter_id": recruiter_id,
+            "candidate_id": feedback_in.candidate_id,
+            "job_id": feedback_in.job_id,
+            "agreed_with_ai": feedback_in.agreed_with_ai,
+            "actual_outcome": feedback_in.actual_outcome,
+            "feedback_notes": feedback_in.feedback_notes,
+            "calibration_tags": feedback_in.calibration_tags,
+            "created_at": now
+        }
+
+        feed_col = mongo_manager.recruiter_feedback
+        if feed_col is not None:
+            try:
+                feed_col.insert_one(fb_doc)
+            except Exception as e:
+                logger.warning(f"Error persisting recruiter feedback: {e}")
+
+        _IN_MEMORY_FEEDBACK.append(fb_doc)
+
+        cls.log_activity(
+            company_id=company_id,
+            recruiter_id=recruiter_id,
+            action="RECORDED_RECRUITER_FEEDBACK",
+            entity_type="candidate_application",
+            entity_id=feedback_in.candidate_id,
+            metadata={"agreed": feedback_in.agreed_with_ai, "outcome": feedback_in.actual_outcome}
+        )
+
+        return {
+            "status": "success",
+            "feedback_id": feedback_id,
+            "message": "Recruiter calibration feedback successfully logged."
+        }
+
+    @classmethod
+    def get_screening_job_status(
+        cls,
+        current_recruiter: Dict[str, Any],
+        job_id: str
+    ) -> ScreeningJobResponse:
+        """
+        Returns real-time status of batch resume screening for a job.
+        """
+        job = cls.get_job(current_recruiter, job_id)
+        applicants = cls.list_job_applicants(current_recruiter, job_id)
+
+        screening_job = _IN_MEMORY_SCREENING_JOBS.get(job_id)
+        if screening_job:
+            return ScreeningJobResponse(**screening_job)
+
+        return ScreeningJobResponse(
+            job_id=job_id,
+            total_resumes=len(applicants),
+            processed_resumes=len(applicants),
+            successful_resumes=len(applicants),
+            failed_resumes=0,
+            status="completed",
+            started_at=job.created_at,
+            completed_at=job.updated_at
+        )
+
 
 recruiter_service = RecruiterService()
+

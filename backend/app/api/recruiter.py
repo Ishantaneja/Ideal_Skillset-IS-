@@ -1,14 +1,12 @@
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime
 from bson import ObjectId
-from fastapi import APIRouter, Depends, Query, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, Query, HTTPException, status, UploadFile, File
 
 from app.core.dependencies import require_recruiter
 from app.database.connection import mongo_manager
 from app.services.auth_service import _IN_MEMORY_USERS
-from app.services.readiness_service import _IN_MEMORY_READINESS
-from app.services.resume_service import _IN_MEMORY_RESUMES
 from app.models.recruiter import (
     RecruiterJobCreate,
     RecruiterJobUpdate,
@@ -28,7 +26,20 @@ from app.models.recruiter import (
     RecruiterDashboardResponse,
     JobInsightsResponse,
     RecruiterAnalyticsResponse,
-    RecruiterSettings
+    RecruiterSettings,
+    EvaluationWeights,
+    WhatIfSimulationRequest,
+    WhatIfSimulationResponse,
+    JobWorkSimulation,
+    WorkSimulationSubmission,
+    WorkSimulationEvaluationResponse,
+    SimulationScenarioType,
+    AgentRunRequest,
+    AgentRunResponse,
+    NLSearchRequest,
+    CapabilitySearchRequest,
+    RecruiterFeedbackCreate,
+    ScreeningJobResponse,
 )
 from app.services.recruiter_service import recruiter_service
 
@@ -147,12 +158,6 @@ async def regenerate_blueprint(
     return recruiter_service.regenerate_blueprint(current_recruiter, job_id)
 
 
-@router.get("/jobs/{job_id}/insights", response_model=JobInsightsResponse, summary="Get Job Talent Pool Insights")
-async def get_job_insights(
-    job_id: str,
-    current_recruiter: Dict[str, Any] = Depends(require_recruiter)
-):
-    return recruiter_service.get_job_insights(current_recruiter, job_id)
 
 
 # ===========================================================================
@@ -206,6 +211,18 @@ async def get_job_applicants(
         sort_by=sort_by,
         order=order
     )
+
+
+@router.get("/jobs/{job_id}/insights", response_model=JobInsightsResponse, summary="Get AI Talent Insights for Job Requisition")
+async def get_job_insights(
+    job_id: str,
+    current_recruiter: Dict[str, Any] = Depends(require_recruiter)
+):
+    """
+    Returns AI talent pool insights, top candidate readiness, and critical skill distribution.
+    """
+    return recruiter_service.get_job_insights(current_recruiter, job_id)
+
 
 
 @router.post("/jobs/{job_id}/screen", summary="Batch AI Re-screen Applicants against Blueprint")
@@ -450,7 +467,7 @@ async def summarize_interview(
 async def update_candidate_stage(
     candidate_id: str,
     job_id: str = Query(...),
-    stage_in: UpdateStageRequest = ...,
+    stage_in: UpdateStageRequest = UpdateStageRequest(stage=ApplicationStage.APPLIED),
     current_recruiter: Dict[str, Any] = Depends(require_recruiter)
 ):
     """
@@ -557,3 +574,147 @@ async def get_recruiter_shortlist(
         "total": len(shortlisted_items),
         "items": shortlisted_items
     }
+
+
+# ===========================================================================
+# 8. Requisition Evaluation Weights
+# ===========================================================================
+
+@router.post("/jobs/{job_id}/weights", response_model=RecruiterJobResponse, summary="Configure Custom Requisition Evaluation Weights")
+async def update_job_evaluation_weights(
+    job_id: str,
+    weights: EvaluationWeights,
+    current_recruiter: Dict[str, Any] = Depends(require_recruiter)
+):
+    """
+    Sets custom evaluation weighting for a job requisition and recalculates candidate fit.
+    """
+    return recruiter_service.update_job_weights(current_recruiter, job_id, weights)
+
+
+# ===========================================================================
+# 9. Natural Language & Capability Candidate Search
+# ===========================================================================
+
+@router.post("/search/natural-language", summary="Natural Language Candidate Search")
+async def search_candidates_natural_language(
+    request: NLSearchRequest,
+    current_recruiter: Dict[str, Any] = Depends(require_recruiter)
+):
+    """
+    Translates unstructured recruiter queries into structured capability filters
+    under company talent pool isolation.
+    """
+    return recruiter_service.search_candidates_natural_language(current_recruiter, request)
+
+
+@router.post("/search/capability", summary="Multi-Source Capability Search")
+async def search_candidates_capability(
+    request: CapabilitySearchRequest,
+    current_recruiter: Dict[str, Any] = Depends(require_recruiter)
+):
+    """
+    Searches candidates using granular multi-source proof filters (GitHub code, certs, fit score).
+    """
+    return recruiter_service.search_candidates_capability(current_recruiter, request)
+
+
+# ===========================================================================
+# 10. What-If Policy & Requirements Simulator
+# ===========================================================================
+
+@router.post("/what-if", response_model=WhatIfSimulationResponse, summary="What-If Policy & Requirements Simulator")
+async def run_what_if_simulation(
+    request: WhatIfSimulationRequest,
+    current_recruiter: Dict[str, Any] = Depends(require_recruiter)
+):
+    """
+    Simulates loosening/tightening requirements on candidate pool size, diversity,
+    and critical skill coverage without mutating live job requisitions.
+    """
+    return recruiter_service.run_what_if_simulation(current_recruiter, request)
+
+
+# ===========================================================================
+# 11. Job Work Simulations
+# ===========================================================================
+
+@router.post("/simulations/work-scenario", response_model=JobWorkSimulation, summary="Generate Job Work Simulation Challenge")
+async def generate_work_simulation_scenario(
+    candidate_id: str = Query(...),
+    job_id: str = Query(...),
+    scenario_type: SimulationScenarioType = Query(SimulationScenarioType.PRODUCTION_INCIDENT),
+    current_recruiter: Dict[str, Any] = Depends(require_recruiter)
+):
+    """
+    Generates a realistic technical work simulation scenario (e.g. database latency incident, API design).
+    """
+    return recruiter_service.generate_job_work_simulation(current_recruiter, candidate_id, job_id, scenario_type)
+
+
+@router.post("/simulations/evaluate", response_model=WorkSimulationEvaluationResponse, summary="Evaluate Work Simulation Submission")
+async def evaluate_work_simulation(
+    submission: WorkSimulationSubmission,
+    current_recruiter: Dict[str, Any] = Depends(require_recruiter)
+):
+    """
+    Evaluates candidate's written technical decisions and troubleshooting steps.
+    """
+    return recruiter_service.evaluate_job_work_simulation(current_recruiter, submission)
+
+
+# ===========================================================================
+# 12. Autonomous AI Recruiter Agent
+# ===========================================================================
+
+@router.post("/agent/run", response_model=AgentRunResponse, summary="Execute Autonomous AI Recruiter Agent")
+async def execute_recruiter_agent_run(
+    request: AgentRunRequest,
+    current_recruiter: Dict[str, Any] = Depends(require_recruiter)
+):
+    """
+    Dispatches task to autonomous AI recruiter agent with tool calling and reasoning transparency.
+    """
+    return await recruiter_service.execute_agent_run(current_recruiter, request)
+
+
+@router.get("/agent/{run_id}", response_model=AgentRunResponse, summary="Get AI Recruiter Agent Run Status & Transcript")
+async def get_recruiter_agent_run(
+    run_id: str,
+    current_recruiter: Dict[str, Any] = Depends(require_recruiter)
+):
+    """
+    Retrieves specific AI Recruiter Agent run output and step-by-step audit trail.
+    """
+    return recruiter_service.get_agent_run(current_recruiter, run_id)
+
+
+# ===========================================================================
+# 13. Recruiter Feedback & Calibration
+# ===========================================================================
+
+@router.post("/feedback", summary="Record Recruiter Feedback & Calibration")
+async def record_recruiter_feedback(
+    feedback_in: RecruiterFeedbackCreate,
+    current_recruiter: Dict[str, Any] = Depends(require_recruiter)
+):
+    """
+    Logs recruiter thumbs up/down and calibration notes to improve AI recommendation accuracy.
+    """
+    return recruiter_service.record_feedback(current_recruiter, feedback_in)
+
+
+# ===========================================================================
+# 14. Batch Resume Screening Job Status
+# ===========================================================================
+
+@router.get("/screening-jobs/{job_id}/status", response_model=ScreeningJobResponse, summary="Get Batch Screening Job Status")
+async def get_screening_job_status(
+    job_id: str,
+    current_recruiter: Dict[str, Any] = Depends(require_recruiter)
+):
+    """
+    Returns real-time batch screening progress and summary counts for a requisition.
+    """
+    return recruiter_service.get_screening_job_status(current_recruiter, job_id)
+

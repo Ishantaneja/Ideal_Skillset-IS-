@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Users,
   Sparkles,
@@ -7,17 +7,20 @@ import {
   BookmarkCheck,
   Search,
   ArrowRight,
-  Github,
-  Mail,
-  MapPin,
   Briefcase,
   FolderGit2,
-  ExternalLink,
   CheckCircle2,
-  X,
   Building2,
-  Filter,
-  Code,
+  Clock,
+  TrendingUp,
+  AlertTriangle,
+  Award,
+  Video,
+  Plus,
+  BarChart3,
+  GitCompare,
+  UploadCloud,
+  FileCheck,
 } from 'lucide-react';
 import { Card, Button, Badge, LoadingSpinner, ProgressBar } from '@/components';
 import { ROUTES } from '@/utils/constants';
@@ -25,35 +28,21 @@ import { useNotification, useDocumentTitle, useAuth } from '@/hooks';
 import { recruiterService } from '@/services';
 
 export default function RecruiterDashboard() {
-  useDocumentTitle('Recruiter Talent Dashboard');
+  useDocumentTitle('Recruiter Command Center');
+  const navigate = useNavigate();
   const notify = useNotification();
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState(null);
-  const [candidates, setCandidates] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedRole, setSelectedRole] = useState('');
-  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
-  const [candidateDetail, setCandidateDetail] = useState(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [data, setData] = useState(null);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [statsRes, candidatesRes] = await Promise.all([
-        recruiterService.getDashboardStats().catch(() => ({
-          total_candidates: 12,
-          github_verified_coders: 8,
-          average_readiness_score: 79.4,
-          shortlisted_candidates_count: 3,
-        })),
-        recruiterService.getCandidates({}).catch(() => ({ items: [] })),
-      ]);
-      setStats(statsRes);
-      setCandidates(candidatesRes.items || []);
+      const res = await recruiterService.getDashboard();
+      setData(res);
     } catch (err) {
-      notify.error(err.message || 'Could not load recruiter talent data');
+      notify.error(err.message || 'Could not load command center metrics');
     } finally {
       setLoading(false);
     }
@@ -63,434 +52,339 @@ export default function RecruiterDashboard() {
     loadData();
   }, []);
 
-  const handleToggleShortlist = async (candidateId, e) => {
-    e?.stopPropagation();
-    try {
-      const res = await recruiterService.toggleShortlist(candidateId);
-      notify.success(res.message || 'Shortlist updated');
-      setCandidates((prev) =>
-        prev.map((c) => (c.id === candidateId ? { ...c, is_shortlisted: res.is_shortlisted } : c))
-      );
-      if (stats) {
-        setStats({
-          ...stats,
-          shortlisted_candidates_count: res.is_shortlisted
-            ? stats.shortlisted_candidates_count + 1
-            : Math.max(0, stats.shortlisted_candidates_count - 1),
-        });
-      }
-    } catch (err) {
-      notify.error('Could not update shortlist');
-    }
-  };
-
-  const handleOpenCandidateModal = async (candidateId) => {
-    setSelectedCandidateId(candidateId);
-    setLoadingDetail(true);
-    try {
-      const detail = await recruiterService.getCandidateDetail(candidateId);
-      setCandidateDetail(detail);
-    } catch (err) {
-      notify.error('Could not load candidate details');
-    } finally {
-      setLoadingDetail(false);
-    }
-  };
-
-  const filteredCandidates = candidates.filter((c) => {
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const match =
-        c.name.toLowerCase().includes(q) ||
-        c.target_role.toLowerCase().includes(q) ||
-        c.skills.some((s) => s.toLowerCase().includes(q));
-      if (!match) return false;
-    }
-    if (selectedRole && !c.target_role.toLowerCase().includes(selectedRole.toLowerCase())) {
-      return false;
-    }
-    return true;
-  });
-
   if (loading) {
-    return <LoadingSpinner fullPage message="Loading talent dashboard..." />;
+    return <LoadingSpinner fullPage message="Loading Recruiter Command Center..." />;
   }
 
+  const openRoles = data?.open_roles || 0;
+  const totalApplicants = data?.total_applicants || 0;
+  const aiScreened = data?.ai_screened || 0;
+  const aiShortlisted = data?.ai_shortlisted || 0;
+  const interviews = data?.interviews || 0;
+  const offers = data?.offers || 0;
+  const hoursSaved = data?.estimated_screening_time_saved_hours || 0;
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
-        <div className="relative z-10 max-w-2xl space-y-2">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-xs font-semibold text-indigo-200 border border-white/10">
-            <Building2 className="w-3.5 h-3.5 text-indigo-300" />
-            <span>{stats?.company_name || user?.companyName || 'Talent Intelligence'}</span>
+    <div className="space-y-8 animate-fadeIn">
+      {/* Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-gradient-to-r from-indigo-900/90 via-slate-900 to-purple-900/90 p-6 rounded-3xl border border-indigo-800/40 text-white shadow-xl shadow-indigo-950/20">
+        <div className="space-y-1.5">
+          <div className="flex items-center space-x-2">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 uppercase tracking-wider">
+              Recruiter AI Hiring Copilot
+            </span>
+            <span className="text-xs text-slate-400">• {data?.company_name || user?.companyName || 'Enterprise'}</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Welcome back, {user?.name || 'Recruiter'}!
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+            Recruiter Command Center
           </h1>
-          <p className="text-xs sm:text-sm text-indigo-200 leading-relaxed">
-            Source candidates benchmarked with multi-source AI Readiness Twins and GitHub-verified project evidence.
+          <p className="text-sm text-slate-300 max-w-2xl">
+            From resume keyword screening to verifiable job readiness with GitHub codebase and certificate proof.
           </p>
         </div>
-      </div>
 
-      {/* Overview Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center space-x-4">
-          <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-lg shrink-0">
-            <Users className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Candidate Pool
-            </span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-              {stats?.total_candidates || candidates.length}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center space-x-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-lg shrink-0">
-            <Sparkles className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Avg. Readiness Score
-            </span>
-            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
-              {stats?.average_readiness_score || 78}%
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center space-x-4">
-          <div className="w-12 h-12 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-lg shrink-0">
-            <Github className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              GitHub-Verified Coders
-            </span>
-            <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-0.5">
-              {stats?.github_verified_coders || 8}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center space-x-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-lg shrink-0">
-            <BookmarkCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Shortlisted Talent
-            </span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-              {stats?.shortlisted_candidates_count || 0}
-            </div>
-          </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            onClick={() => navigate(ROUTES.RECRUITER_JOBS)}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs py-2.5 px-4 rounded-xl flex items-center space-x-2 shadow-md shadow-indigo-600/30"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Post New Job</span>
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate(ROUTES.RECRUITER_CANDIDATES)}
+            className="border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs py-2.5 px-4 rounded-xl flex items-center space-x-2"
+          >
+            <Search className="w-4 h-4" />
+            <span>Search Talent</span>
+          </Button>
         </div>
       </div>
 
-      {/* Talent Search & Filter Bar */}
-      <Card className="p-4">
-        <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
-          <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search candidate name, skill (e.g. Python, React, SQL), or role..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+      {/* Primary KPI Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+            <span className="text-xs font-bold uppercase">Open Roles</span>
+            <Briefcase className="w-4 h-4 text-indigo-600" />
           </div>
+          <div className="text-2xl font-black text-slate-900 dark:text-white">{openRoles}</div>
+          <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1">Active requisitions</p>
+        </div>
 
-          <div className="flex items-center space-x-2 w-full md:w-auto">
-            <select
-              value={selectedRole}
-              onChange={(e) => setSelectedRole(e.target.value)}
-              className="w-full md:w-56 text-xs px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+            <span className="text-xs font-bold uppercase">Total Applied</span>
+            <Users className="w-4 h-4 text-purple-600" />
+          </div>
+          <div className="text-2xl font-black text-slate-900 dark:text-white">{totalApplicants}</div>
+          <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1">Candidate profiles</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+            <span className="text-xs font-bold uppercase">AI Screened</span>
+            <Sparkles className="w-4 h-4 text-indigo-500" />
+          </div>
+          <div className="text-2xl font-black text-slate-900 dark:text-white">{aiScreened}</div>
+          <p className="text-[11px] text-indigo-700 dark:text-indigo-400 mt-1 font-semibold">100% automated</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+            <span className="text-xs font-bold uppercase">Shortlisted</span>
+            <BookmarkCheck className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-2xl font-black text-slate-900 dark:text-white">{aiShortlisted}</div>
+          <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1 font-semibold">High fit potential</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+            <span className="text-xs font-bold uppercase">Interviews</span>
+            <Video className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="text-2xl font-black text-slate-900 dark:text-white">{interviews}</div>
+          <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1">In interview loop</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+            <span className="text-xs font-bold uppercase">Offers & Hires</span>
+            <Award className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="text-2xl font-black text-slate-900 dark:text-white">{offers}</div>
+          <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1 font-semibold">Final conversion</p>
+        </div>
+      </div>
+
+      {/* Screening Time Saved Highlight Banner */}
+      <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-indigo-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center space-x-3.5">
+          <div className="w-12 h-12 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
+            <Clock className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-black uppercase text-emerald-700 dark:text-emerald-400 tracking-wider">
+                Screening Efficiency
+              </span>
+              <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-md font-bold">
+                ESTIMATE
+              </span>
+            </div>
+            <div className="text-lg font-black text-slate-900 dark:text-white">
+              ~{hoursSaved} hours of manual screening saved
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              {data?.screening_time_note}
+            </p>
+          </div>
+        </div>
+        <Link
+          to={ROUTES.RECRUITER_ANALYTICS}
+          className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center space-x-1.5 shrink-0"
+        >
+          <span>View Efficiency Funnel</span>
+          <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
+
+      {/* Two Column Grid: Active Jobs & Pipeline Funnel */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: Active Jobs List */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Briefcase className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                Active Job Requisitions
+              </h2>
+            </div>
+            <Link
+              to={ROUTES.RECRUITER_JOBS}
+              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center space-x-1"
             >
-              <option value="">All Career Tracks</option>
-              <option value="Data Analyst">Data Analyst</option>
-              <option value="Frontend">Frontend Software Engineer</option>
-              <option value="Backend">Backend Python Developer</option>
-              <option value="Full Stack">Full Stack Developer</option>
-            </select>
-
-            <Link to={ROUTES.RECRUITER_CANDIDATES}>
-              <Button variant="outline" size="sm" className="whitespace-nowrap text-xs font-semibold">
-                Advanced Discovery →
-              </Button>
+              <span>Manage All Jobs</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
-        </div>
-      </Card>
 
-      {/* Top Candidate Talent Grid */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
-            Featured Ready-to-Hire Candidates ({filteredCandidates.length})
-          </h2>
-          <Link
-            to={ROUTES.RECRUITER_SHORTLIST}
-            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center"
-          >
-            <span>View Shortlist ({stats?.shortlisted_candidates_count || 0})</span>
-            <ArrowRight className="w-3.5 h-3.5 ml-1" />
-          </Link>
-        </div>
+          <div className="space-y-3">
+            {data?.active_jobs?.length > 0 ? (
+              data.active_jobs.map((job) => (
+                <div
+                  key={job.id}
+                  onClick={() => navigate(`/recruiter/jobs/${job.id}/candidates`)}
+                  className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-indigo-500/50 hover:shadow-md transition-all cursor-pointer flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold text-slate-900 dark:text-white text-base">
+                        {job.title}
+                      </span>
+                      <span className="text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 font-bold px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+                        Active
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-3 text-xs text-slate-500">
+                      <span>{job.location}</span>
+                      <span>•</span>
+                      <span>AI Blueprint Verified</span>
+                    </div>
+                  </div>
 
-        {filteredCandidates.length === 0 ? (
-          <Card className="text-center py-12 text-slate-500 dark:text-slate-400 text-xs">
-            No candidates matched your search criteria.
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredCandidates.map((candidate) => (
-              <div
-                key={candidate.id}
-                onClick={() => handleOpenCandidateModal(candidate.id)}
-                className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between space-y-4 group"
-              >
-                <div className="space-y-3">
-                  {/* Candidate Header & Readiness Score */}
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-xs">
-                        {candidate.name
-                          .split(' ')
-                          .map((n) => n[0])
-                          .join('')
-                          .substring(0, 2)
-                          .toUpperCase()}
+                  <div className="flex items-center space-x-4 shrink-0">
+                    <div className="text-right">
+                      <div className="text-lg font-black text-slate-900 dark:text-white">
+                        {job.applicant_count}
                       </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                          {candidate.name}
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center mt-0.5">
-                          <Briefcase className="w-3 h-3 mr-1 text-slate-400" />
-                          {candidate.target_role}
-                        </p>
+                      <div className="text-[10px] text-slate-400 uppercase font-semibold">
+                        Applicants
                       </div>
                     </div>
 
-                    {/* Shortlist Star Toggle */}
-                    <button
-                      type="button"
-                      onClick={(e) => handleToggleShortlist(candidate.id, e)}
-                      className={`p-2 rounded-xl transition-colors ${
-                        candidate.is_shortlisted
-                          ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-600'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-amber-500'
-                      }`}
-                      title={candidate.is_shortlisted ? 'Remove from Shortlist' : 'Add to Shortlist'}
+                    <Button
+                      size="sm"
+                      className="bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-600 hover:text-white text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold rounded-xl"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/recruiter/jobs/${job.id}/candidates`);
+                      }}
                     >
-                      <BookmarkCheck className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Readiness & GitHub Badges */}
-                  <div className="grid grid-cols-2 gap-2 pt-1 text-center">
-                    <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60">
-                      <span className="text-[9px] font-bold uppercase text-emerald-800 dark:text-emerald-300">
-                        Readiness Twin
-                      </span>
-                      <div className="text-base font-black text-emerald-700 dark:text-emerald-300">
-                        {Math.round(candidate.readiness_score)}%
-                      </div>
-                    </div>
-
-                    <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/60">
-                      <span className="text-[9px] font-bold uppercase text-indigo-800 dark:text-indigo-300">
-                        GitHub Evidence
-                      </span>
-                      <div className="text-base font-black text-indigo-700 dark:text-indigo-300">
-                        {candidate.github_proof_score ? `${Math.round(candidate.github_proof_score)}%` : 'Verified'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Skill Badges */}
-                  <div className="flex flex-wrap gap-1">
-                    {candidate.skills?.slice(0, 4).map((skill, idx) => (
-                      <span
-                        key={idx}
-                        className="text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                    {candidate.skills?.length > 4 && (
-                      <span className="text-[10px] text-slate-400 px-1 py-0.5">
-                        +{candidate.skills.length - 4} more
-                      </span>
-                    )}
+                      <UploadCloud className="w-3.5 h-3.5 mr-1" />
+                      Upload & Screen
+                    </Button>
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
-                  <span className="flex items-center">
-                    <MapPin className="w-3 h-3 mr-1" />
-                    {candidate.location || 'Remote'}
-                  </span>
-                  <span className="font-bold text-indigo-600 dark:text-indigo-400 group-hover:underline flex items-center">
-                    Inspect 5D Dossier →
-                  </span>
-                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800">
+                <Briefcase className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No active job requisitions</p>
+                <p className="text-xs text-slate-500 mb-4">Create your first role to start AI resume screening and skill verification.</p>
+                <Button onClick={() => navigate(ROUTES.RECRUITER_JOBS)} size="sm">
+                  Create Role Now
+                </Button>
               </div>
-            ))}
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Candidate Dossier Inspection Modal */}
-      {selectedCandidateId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 space-y-6">
-            {loadingDetail || !candidateDetail ? (
-              <div className="py-16 text-center">
-                <LoadingSpinner message="Retrieving Candidate 5D Twin Dossier..." />
+          {/* Candidates Requiring Verification Queue */}
+          <div className="pt-4 space-y-3">
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                Candidates Requiring Verification ({data?.candidates_requiring_verification?.length || 0})
+              </h3>
+            </div>
+
+            {data?.candidates_requiring_verification?.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {data.candidates_requiring_verification.map((cand, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => navigate(`/recruiter/candidates/${cand.candidate_id}`)}
+                    className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/20 hover:border-amber-500/40 transition-all cursor-pointer flex items-center justify-between"
+                  >
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                        Candidate #{cand.candidate_id?.slice(-6) || idx + 1}
+                      </span>
+                      <span className="text-[11px] text-amber-700 dark:text-amber-400 block mt-0.5">
+                        Verify: {cand.unverified_skills?.join(', ') || 'Core skill depth'}
+                      </span>
+                    </div>
+                    <span className="text-xs font-black text-slate-900 dark:text-white bg-white dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                      {cand.overall_fit}% Fit
+                    </span>
+                  </div>
+                ))}
               </div>
             ) : (
-              <>
-                {/* Modal Header */}
-                <div className="flex items-start justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white font-extrabold text-xl flex items-center justify-center shadow-md">
-                      {candidateDetail.candidate.name
-                        .split(' ')
-                        .map((n) => n[0])
-                        .join('')
-                        .substring(0, 2)
-                        .toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                          {candidateDetail.candidate.name}
-                        </h2>
-                        <Badge variant="emerald">Verified Candidate</Badge>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        {candidateDetail.candidate.target_role} • {candidateDetail.candidate.email}
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setSelectedCandidateId(null)}
-                    className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Candidate Overview */}
-                {candidateDetail.candidate.bio && (
-                  <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 leading-relaxed">
-                    {candidateDetail.candidate.bio}
-                  </p>
-                )}
-
-                {/* 5-Dimensional Competency Breakdown */}
-                {candidateDetail.readiness_twin && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white flex items-center">
-                        <Sparkles className="w-4 h-4 text-indigo-500 mr-1.5" />
-                        5-Dimensional AI Readiness Twin
-                      </h3>
-                      <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
-                        {Math.round(candidateDetail.readiness_twin.overall_readiness_score)}% Overall Score
-                      </span>
-                    </div>
-
-                    <div className="space-y-2.5">
-                      {candidateDetail.readiness_twin.breakdown_list?.map((dim, idx) => (
-                        <div
-                          key={idx}
-                          className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 text-xs"
-                        >
-                          <div className="flex items-center justify-between font-semibold">
-                            <span className="text-slate-800 dark:text-slate-200">{dim.name}</span>
-                            <span className="font-bold text-slate-900 dark:text-white">{Math.round(dim.score)}%</span>
-                          </div>
-                          <ProgressBar value={dim.score} max={100} variant={dim.status_color || 'emerald'} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* GitHub Verified Code Evidence */}
-                {candidateDetail.candidate.github_verification && (
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white flex items-center">
-                      <Github className="w-4 h-4 text-purple-500 mr-1.5" />
-                      Verified GitHub Projects & Skills
-                    </h3>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                      {candidateDetail.candidate.github_verification.verified_skills?.map((item) => (
-                        <div
-                          key={item.skill}
-                          className="p-2.5 rounded-lg bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 space-y-1"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-emerald-900 dark:text-emerald-200 flex items-center">
-                              <Code className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                              {item.skill}
-                            </span>
-                            <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 rounded">
-                              Used in Code
-                            </span>
-                          </div>
-                          {item.matched_repositories?.length > 0 && (
-                            <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">
-                              Repos: {item.matched_repositories.join(', ')}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Action Bar */}
-                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-                  <Button
-                    variant="primary"
-                    className="flex-1 justify-center bg-indigo-600 hover:bg-indigo-700 text-xs font-bold"
-                    onClick={() => handleToggleShortlist(candidateDetail.candidate.id)}
-                  >
-                    <BookmarkCheck className="w-4 h-4 mr-1.5" />
-                    Shortlist Candidate
-                  </Button>
-                  {candidateDetail.candidate.github_url && (
-                    <a
-                      href={candidateDetail.candidate.github_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1"
-                    >
-                      <Button variant="outline" className="w-full justify-center text-xs font-bold">
-                        <Github className="w-4 h-4 mr-1.5" />
-                        View Public GitHub
-                      </Button>
-                    </a>
-                  )}
-                </div>
-              </>
+              <p className="text-xs text-slate-500 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                All high-fit applicants currently have their critical technical claims verified by code repositories or certificates.
+              </p>
             )}
           </div>
         </div>
-      )}
+
+        {/* Right: Pipeline Funnel & Activity */}
+        <div className="space-y-6">
+          {/* Pipeline Stage Breakdown */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                <BarChart3 className="w-4 h-4 text-indigo-600" />
+                <span>Hiring Pipeline</span>
+              </span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase">Stage Distribution</span>
+            </div>
+
+            <div className="space-y-2.5 text-xs">
+              {Object.entries(data?.pipeline_breakdown || {}).slice(0, 6).map(([stage, count]) => {
+                const total = Math.max(totalApplicants, 1);
+                const pct = Math.round((count / total) * 100);
+                return (
+                  <div key={stage} className="space-y-1">
+                    <div className="flex justify-between font-semibold text-slate-700 dark:text-slate-300">
+                      <span className="capitalize">{stage.replace('_', ' ')}</span>
+                      <span>{count} ({pct}%)</span>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-indigo-600 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.max(5, pct)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Skill Shortage Radar */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
+            <span className="text-sm font-bold text-slate-900 dark:text-white block">
+              Talent Pool Skill Shortages
+            </span>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Common missing skills across applicant pool based on job blueprint comparisons:
+            </p>
+            <div className="space-y-2">
+              {data?.skill_shortage_insights?.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between text-xs p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">{item.skill}</span>
+                  <span className="text-rose-600 dark:text-rose-400 font-bold text-[11px]">{item.gap_frequency}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
+            <span className="text-sm font-bold text-slate-900 dark:text-white block">
+              Recent Recruiter Activity
+            </span>
+            <div className="space-y-3 text-xs">
+              {data?.recent_activity?.slice(0, 4).map((act, idx) => (
+                <div key={idx} className="flex items-start space-x-2.5 text-slate-600 dark:text-slate-300">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
+                  <div>
+                    <span className="font-bold text-slate-900 dark:text-white block capitalize">
+                      {act.action?.toLowerCase().replace(/_/g, ' ')}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {act.timestamp ? new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
-

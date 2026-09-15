@@ -109,6 +109,13 @@ class TextExtractor:
             return cls.extract_from_pdf(file_path)
         elif ft in ("docx", "doc"):
             return cls.extract_from_docx(file_path)
+        elif ft in ("txt", "text"):
+            try:
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    return cls.clean_text(f.read())
+            except Exception as e:
+                logger.error(f"TXT extraction error: {e}")
+                raise ValueError(f"Failed to extract text from TXT document: {str(e)}")
         else:
             raise ValueError(f"Unsupported file type '{file_type}' for text extraction")
 

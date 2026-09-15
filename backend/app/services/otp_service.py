@@ -88,17 +88,23 @@ class OTPService:
         else:
             existing_otp_doc = _IN_MEMORY_SIGNUP_OTPS.get(email_normalized)
 
-        if existing_otp_doc and existing_otp_doc.get("last_sent_at"):
+        if existing_otp_doc:
             last_sent = existing_otp_doc.get("last_sent_at")
-            if last_sent.tzinfo is None:
-                last_sent = last_sent.replace(tzinfo=timezone.utc)
-            elapsed = (now - last_sent).total_seconds()
-            if elapsed < cls.RESEND_COOLDOWN_SECONDS:
-                remaining = int(cls.RESEND_COOLDOWN_SECONDS - elapsed)
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail=f"Please wait {remaining} seconds before requesting another verification code.",
-                )
+            if isinstance(last_sent, str):
+                try:
+                    last_sent = datetime.fromisoformat(last_sent)
+                except Exception:
+                    last_sent = None
+            if isinstance(last_sent, datetime):
+                if last_sent.tzinfo is None:
+                    last_sent = last_sent.replace(tzinfo=timezone.utc)
+                elapsed = (now - last_sent).total_seconds()
+                if elapsed < cls.RESEND_COOLDOWN_SECONDS:
+                    remaining = int(cls.RESEND_COOLDOWN_SECONDS - elapsed)
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail=f"Please wait {remaining} seconds before requesting another verification code.",
+                    )
 
         # 3. Hash candidate password securely
         password_hash = get_password_hash(request_data.password)

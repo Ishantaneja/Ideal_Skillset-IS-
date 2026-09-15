@@ -908,7 +908,7 @@ class AdminService:
 
         if search:
             s = search.strip().lower()
-            items = [item for item in items if s in item.title.lower() or s in item.user_name.lower() or s in (item.user_email or "").lower()]
+            items = [item for item in items if s in (item.title or "").lower() or s in (item.user_name or "").lower() or s in (item.user_email or "").lower()]
 
         total = len(items)
         skip = (page - 1) * limit

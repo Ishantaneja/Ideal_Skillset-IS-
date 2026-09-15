@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from app.models.recruiter import (
     CandidateEvaluation,
     CandidateEvaluationScores,
+    CandidateSuccessMilestone,
+    CandidateUpskillFit,
     NextActionRecommendation,
     JobBlueprint,
     SkillVerificationStatus,
@@ -30,7 +32,8 @@ class ResumeEvaluator:
         assessment_data: Optional[Dict[str, Any]] = None,
         interview_data: Optional[Dict[str, Any]] = None,
         readiness_report: Optional[Dict[str, Any]] = None,
-        job_id: str = "job_default"
+        job_id: str = "job_default",
+        weights: Optional[Dict[str, float]] = None
     ) -> CandidateEvaluation:
         """
         Calculates multi-dimensional fit, evidence confidence, strengths, concerns,
@@ -87,14 +90,21 @@ class ResumeEvaluator:
         exp_score = min(100.0, max(30.0, 50.0 + len(work_hist) * 15.0 + years_exp * 5.0))
 
         # 4. Practical Evidence Fit
+        projects = parsed_resume.get("projects", []) or candidate_data.get("projects", [])
         gh_verif = candidate_data.get("github_verification") or {}
         proof_score = float(gh_verif.get("proof_score", 0.0))
         if proof_score > 0:
             evidence_fit = proof_score
         elif candidate_data.get("github_url"):
-            evidence_fit = 70.0
+            evidence_fit = 85.0
+        elif any(v.github_evidence != "None" for v in verifications):
+            evidence_fit = 85.0
+        elif any(v.certificate_evidence != "None" for v in verifications):
+            evidence_fit = 82.0
+        elif len(projects) >= 1:
+            evidence_fit = 78.0
         else:
-            evidence_fit = 45.0
+            evidence_fit = 62.0
 
         # 5. Assessment Performance
         assess_score = None
@@ -128,15 +138,33 @@ class ResumeEvaluator:
         avg_confidence = round(sum(conf_scores) / max(len(conf_scores), 1), 1)
 
         # 10. Composite Overall Fit
-        # Overall Fit = 30% Tech + 20% Exp + 20% Evidence + 15% Assessment + 15% Readiness
-        overall_fit = round(
-            0.30 * tech_score +
-            0.20 * exp_score +
-            0.20 * evidence_fit +
-            0.15 * assess_score +
-            0.15 * readiness_score,
-            1
-        )
+        # Support custom job evaluation weights if provided; otherwise use default balanced weights
+        if weights and isinstance(weights, dict):
+            w_tech = weights.get("technical_skills", 0.35)
+            w_exp = weights.get("experience", 0.25)
+            w_ev = weights.get("practical_evidence", 0.15)
+            w_asm = weights.get("assessment", 0.10)
+            w_comm = weights.get("communication", 0.10)
+            w_edu = weights.get("education", 0.05)
+            overall_fit = round(
+                w_tech * tech_score +
+                w_exp * exp_score +
+                w_ev * evidence_fit +
+                w_asm * assess_score +
+                w_comm * 80.0 +
+                w_edu * edu_score,
+                1
+            )
+        else:
+            # Standard balanced composite: 30% Tech + 20% Exp + 20% Evidence + 15% Assessment + 15% Readiness
+            overall_fit = round(
+                0.30 * tech_score +
+                0.20 * exp_score +
+                0.20 * evidence_fit +
+                0.15 * assess_score +
+                0.15 * readiness_score,
+                1
+            )
         overall_fit = min(99.0, max(25.0, overall_fit))
 
         scores = CandidateEvaluationScores(
@@ -157,15 +185,15 @@ class ResumeEvaluator:
             SkillVerificationStatus.INSUFFICIENT_EVIDENCE
         ] for v in verifications)
 
-        if overall_fit >= 88.0 and not critical_unverified and avg_confidence >= 80.0:
+        if overall_fit >= 82.0 and not critical_unverified and avg_confidence >= 75.0:
             recommended_action = NextActionRecommendation.STRONG_MATCH
-        elif overall_fit >= 78.0 and not critical_unverified:
+        elif overall_fit >= 72.0 and not critical_unverified:
             recommended_action = NextActionRecommendation.INTERVIEW
-        elif critical_unverified and overall_fit >= 70.0:
+        elif critical_unverified or any(v.status == SkillVerificationStatus.REQUIRES_VERIFICATION for v in verifications):
             recommended_action = NextActionRecommendation.VERIFY_SKILLS
-        elif overall_fit >= 65.0:
+        elif overall_fit >= 60.0:
             recommended_action = NextActionRecommendation.ASSESSMENT_FIRST
-        elif overall_fit >= 50.0:
+        elif overall_fit >= 45.0:
             recommended_action = NextActionRecommendation.BORDERLINE
         else:
             recommended_action = NextActionRecommendation.LOW_MATCH
@@ -196,6 +224,38 @@ class ResumeEvaluator:
         else:
             ramp_up = "6-8 weeks (Requires guided mentoring on missing tools)"
 
+        # 13. Candidate First 90-Day Success Milestones (AI-assisted estimates)
+        milestones = [
+            CandidateSuccessMilestone(
+                period="0-30 days",
+                risk_level="low" if overall_fit >= 75 else "medium",
+                focus_area=f"Onboarding, codebase orientation in {blueprint.role_title}, and developer environment setup.",
+                recommendation="Pair on initial feature commits and codebase review."
+            ),
+            CandidateSuccessMilestone(
+                period="31-60 days",
+                risk_level="medium" if unverified_skills else "low",
+                focus_area=f"Independent delivery on core API/architecture deliverables ({', '.join([s.name for s in blueprint.critical_skills[:2]]) if blueprint.critical_skills else 'core stack'}).",
+                recommendation=f"Review architecture decisions around {unverified_skills[0] if unverified_skills else 'system integration'}."
+            ),
+            CandidateSuccessMilestone(
+                period="61-90 days",
+                risk_level="medium" if missing_skills else "low",
+                focus_area="Autonomous ownership of complex production tasks and cross-team feature delivery.",
+                recommendation=f"Provide training on {missing_skills[0] if missing_skills else 'advanced domain patterns'}."
+            )
+        ]
+
+        # 14. Candidate Internal Upskill Fit
+        top_focus = missing_skills[0] if missing_skills else (unverified_skills[0] if unverified_skills else "Advanced Architecture")
+        upskill_fit = CandidateUpskillFit(
+            current_fit=overall_fit,
+            potential_fit_after_training=min(98.0, overall_fit + 10.0),
+            target_skill=top_focus,
+            estimated_training_effort="Low" if len(missing_skills) == 0 else ("Moderate" if len(missing_skills) <= 2 else "Substantial"),
+            projected_ramp_up_weeks=2 if len(missing_skills) == 0 else (4 if len(missing_skills) <= 2 else 6)
+        )
+
         summary_explanation = (
             f"Candidate achieves a {overall_fit:.0f}% overall match for {blueprint.role_title}. "
             f"{len(strengths)} key skills are verified. Recommended next action: {recommended_action.value}."
@@ -216,6 +276,9 @@ class ResumeEvaluator:
             consistency_checks=consistency_checks,
             summary_explanation=summary_explanation,
             estimated_ramp_up=ramp_up,
+            milestones=milestones,
+            upskill_fit=upskill_fit,
+            evaluation_version="v1.0",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc)
         )

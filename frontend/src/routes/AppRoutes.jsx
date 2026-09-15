@@ -26,8 +26,19 @@ const ReadinessTwin = lazy(() => import('@/pages/user/ReadinessTwin'));
 
 // Lazy-loaded Recruiter Pages
 const RecruiterDashboard = lazy(() => import('@/pages/recruiter/RecruiterDashboard'));
+const RecruiterJobs = lazy(() => import('@/pages/recruiter/RecruiterJobs'));
+const RecruiterJobDetail = lazy(() => import('@/pages/recruiter/RecruiterJobDetail'));
+const RecruiterJobCandidates = lazy(() => import('@/pages/recruiter/RecruiterJobCandidates'));
 const RecruiterCandidates = lazy(() => import('@/pages/recruiter/RecruiterCandidates'));
+const RecruiterCandidate360 = lazy(() => import('@/pages/recruiter/RecruiterCandidate360'));
+const RecruiterCompare = lazy(() => import('@/pages/recruiter/RecruiterCompare'));
+const RecruiterAssessments = lazy(() => import('@/pages/recruiter/RecruiterAssessments'));
+const RecruiterInterviews = lazy(() => import('@/pages/recruiter/RecruiterInterviews'));
 const RecruiterShortlist = lazy(() => import('@/pages/recruiter/RecruiterShortlist'));
+const RecruiterAgents = lazy(() => import('@/pages/recruiter/RecruiterAgents'));
+const RecruiterSimulations = lazy(() => import('@/pages/recruiter/RecruiterSimulations'));
+const RecruiterAnalytics = lazy(() => import('@/pages/recruiter/RecruiterAnalytics'));
+const RecruiterSettings = lazy(() => import('@/pages/recruiter/RecruiterSettings'));
 
 // Lazy-loaded Admin Pages
 const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard'));
@@ -86,8 +97,19 @@ export default function AppRoutes() {
           }
         >
           <Route path={ROUTES.RECRUITER_DASHBOARD} element={<RecruiterDashboard />} />
+          <Route path={ROUTES.RECRUITER_JOBS} element={<RecruiterJobs />} />
+          <Route path={ROUTES.RECRUITER_JOB_DETAIL} element={<RecruiterJobDetail />} />
+          <Route path={ROUTES.RECRUITER_JOB_CANDIDATES} element={<RecruiterJobCandidates />} />
           <Route path={ROUTES.RECRUITER_CANDIDATES} element={<RecruiterCandidates />} />
+          <Route path={ROUTES.RECRUITER_CANDIDATE_360} element={<RecruiterCandidate360 />} />
+          <Route path={ROUTES.RECRUITER_COMPARE} element={<RecruiterCompare />} />
+          <Route path={ROUTES.RECRUITER_ASSESSMENTS} element={<RecruiterAssessments />} />
+          <Route path={ROUTES.RECRUITER_INTERVIEWS} element={<RecruiterInterviews />} />
           <Route path={ROUTES.RECRUITER_SHORTLIST} element={<RecruiterShortlist />} />
+          <Route path={ROUTES.RECRUITER_AGENTS} element={<RecruiterAgents />} />
+          <Route path={ROUTES.RECRUITER_SIMULATIONS} element={<RecruiterSimulations />} />
+          <Route path={ROUTES.RECRUITER_ANALYTICS} element={<RecruiterAnalytics />} />
+          <Route path={ROUTES.RECRUITER_SETTINGS} element={<RecruiterSettings />} />
         </Route>
 
         {/* Admin Application Routes (Wrapped with AdminLayout & ProtectedRoute) */}

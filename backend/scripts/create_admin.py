@@ -36,6 +36,9 @@ def create_admin():
         sys.exit(1)
 
     user_col = mongo_manager.user_data
+    if user_col is None:
+        print("[ERROR] MongoDB user_data collection is unavailable.")
+        sys.exit(1)
 
     # 2. Gather inputs
     name = input("Enter Admin Full Name : ").strip()

@@ -187,6 +187,19 @@ class MongoDBManager:
                 act_col.create_index([("recruiter_id", ASCENDING), ("created_at", DESCENDING)], name="idx_rec_activity_rec_created")
                 act_col.create_index([("company_id", ASCENDING), ("created_at", DESCENDING)], name="idx_rec_activity_comp_created")
 
+                # Agent_runs
+                agent_col = self.db["Agent_runs"]
+                agent_col.create_index([("company_id", ASCENDING), ("recruiter_id", ASCENDING), ("created_at", DESCENDING)], name="idx_agent_runs_comp_rec")
+                agent_col.create_index("state", name="idx_agent_runs_state")
+
+                # Screening_jobs
+                screen_col = self.db["Screening_jobs"]
+                screen_col.create_index([("job_id", ASCENDING), ("status", ASCENDING)], name="idx_screen_jobs_job_status")
+
+                # Simulation_runs
+                sim_col = self.db["Simulation_runs"]
+                sim_col.create_index([("job_id", ASCENDING), ("company_id", ASCENDING)], name="idx_sim_runs_job_comp")
+
                 logger.info("Verified indexes for Recruiter AI Hiring Copilot collections")
             except Exception as e:
                 logger.warning(f"Note on Recruiter collections index creation: {e}")
@@ -382,6 +395,47 @@ class MongoDBManager:
     @property
     def Recruiter_activity(self) -> Optional[Collection]:
         return self.get_collection("Recruiter_activity")
+
+    @property
+    def agent_runs(self) -> Optional[Collection]:
+        return self.get_collection("Agent_runs")
+
+    @property
+    def Agent_runs(self) -> Optional[Collection]:
+        return self.get_collection("Agent_runs")
+
+    @property
+    def screening_jobs(self) -> Optional[Collection]:
+        return self.get_collection("Screening_jobs")
+
+    @property
+    def Screening_jobs(self) -> Optional[Collection]:
+        return self.get_collection("Screening_jobs")
+
+    @property
+    def simulation_runs(self) -> Optional[Collection]:
+        return self.get_collection("Simulation_runs")
+
+    @property
+    def Simulation_runs(self) -> Optional[Collection]:
+        return self.get_collection("Simulation_runs")
+
+    @property
+    def work_simulations(self) -> Optional[Collection]:
+        return self.get_collection("Work_simulations")
+
+    @property
+    def Work_simulations(self) -> Optional[Collection]:
+        return self.get_collection("Work_simulations")
+
+    @property
+    def recruiter_feedback(self) -> Optional[Collection]:
+        return self.get_collection("Recruiter_feedback")
+
+    @property
+    def Recruiter_feedback(self) -> Optional[Collection]:
+        return self.get_collection("Recruiter_feedback")
+
 
 
 # Global database manager instance

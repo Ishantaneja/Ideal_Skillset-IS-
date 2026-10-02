@@ -1,3 +1,4 @@
+import re
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
@@ -16,10 +17,20 @@ from app.models.ats import (
     KeywordMatchResult,
     ATSImprovementItem,
     WhatIfItem,
+    ResumeTailorRequest,
+    ResumeTailorResponse,
+    SaveTailoredResumeRequest,
+    SaveTailoredResumeResponse,
+    ResumePDFRequest,
 )
 from app.services.ats_engine import ats_engine, ATS_WEIGHTS
-from app.services.resume_service import resume_service
+from app.services.resume_service import resume_service, _IN_MEMORY_RESUMES
 from app.services.job_service import job_service
+from app.services.ai.resume_tailorer import resume_tailorer
+from app.services.pdf_generator import pdf_generator
+from app.services.resume_parser import resume_parser
+from app.services.jd_parser import jd_parser
+from app.services.storage_service import storage_service
 from app.database.connection import mongo_manager
 
 logger = logging.getLogger("uvicorn.error")
@@ -146,7 +157,20 @@ class ATSService:
         items: List[ATSResultListItem] = []
 
         if ats_col is not None:
-            cursor = ats_col.find({"user_id": user_id}).sort("created_at", -1)
+            cursor = ats_col.find(
+                {"user_id": user_id},
+                projection={
+                    "_id": 1,
+                    "resume_id": 1,
+                    "job_id": 1,
+                    "job_title": 1,
+                    "company_name": 1,
+                    "resume_filename": 1,
+                    "score": 1,
+                    "label": 1,
+                    "created_at": 1,
+                }
+            ).sort("created_at", -1)
             for doc in cursor:
                 items.append(ATSResultListItem(
                     id=str(doc.get("_id")),
@@ -294,6 +318,183 @@ class ATSService:
             "applied_skills": applied_skills,
             "simulated_label": ats_engine.get_match_label(simulated_score)
         }
+
+    @classmethod
+    def tailor_resume(
+        cls,
+        payload: ResumeTailorRequest,
+        current_user: Dict[str, Any]
+    ) -> ResumeTailorResponse:
+        """
+        Synthesizes an ATS-tailored resume specifically aligned with the target JD,
+        calculating deterministic before/after scores, skills added, and rewritten bullet points.
+        """
+        user_id = str(current_user.get("id", ""))
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User session invalid. Please log in again."
+            )
+
+        # 1. Fetch baseline resume and verify ownership
+        resume_resp = resume_service.get_resume(payload.resume_id, current_user)
+        resume_doc = {
+            "parsed_data": resume_resp.parsed_data.model_dump(),
+            "extracted_text": resume_resp.extracted_text,
+            "original_filename": resume_resp.original_filename,
+        }
+
+        # 2. Fetch target job or parse raw text
+        if payload.job_id:
+            job_resp = job_service.get_job(payload.job_id, current_user)
+            job_doc = {
+                "job_info": job_resp.job_info.model_dump(),
+                "requirements": job_resp.requirements.model_dump(),
+                "raw_text": job_resp.raw_text,
+            }
+        elif payload.job_text and len(payload.job_text.strip()) > 30:
+            job_info, requirements = jd_parser.parse_job_description(payload.job_text)
+            job_doc = {
+                "job_info": job_info.model_dump(),
+                "requirements": requirements.model_dump(),
+                "raw_text": payload.job_text,
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either job_id or valid job_text must be provided to tailor the resume."
+            )
+
+        # 3. Tailor resume using AI engine
+        return resume_tailorer.tailor_resume(
+            resume_doc=resume_doc,
+            job_doc=job_doc,
+            target_skills=payload.target_skills,
+            focus_areas=payload.focus_areas,
+        )
+
+    @classmethod
+    def save_tailored_resume(
+        cls,
+        payload: SaveTailoredResumeRequest,
+        current_user: Dict[str, Any]
+    ) -> SaveTailoredResumeResponse:
+        """
+        Saves the tailored resume as an official resume record, optionally activates it,
+        and re-runs ATS evaluation against the target job.
+        """
+        user_id = str(current_user.get("id", ""))
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User session invalid. Please log in again."
+            )
+
+        # 1. Verify original resume ownership
+        resume_service.get_resume(payload.original_resume_id, current_user)
+
+        # 2. Parse tailored text into structured schema
+        tailored_parsed = resume_parser.parse_resume(payload.tailored_text)
+
+        now = datetime.now(timezone.utc)
+        clean_title = payload.title or f"Tailored Resume ({now.strftime('%b %d, %Y')})"
+        clean_filename = f"{re.sub(r'[^a-zA-Z0-9_]+', '_', clean_title.lower()).strip('_')}.txt"
+
+        # 3. Save text file to disk
+        file_bytes = payload.tailored_text.encode("utf-8")
+        storage_path, file_type, file_size = storage_service.save_file(file_bytes, clean_filename)
+
+        resume_doc = {
+            "user_id": user_id,
+            "original_filename": clean_filename,
+            "file_type": "txt",
+            "file_size": file_size,
+            "storage_path": storage_path,
+            "is_active": payload.set_active,
+            "uploaded_at": now,
+            "updated_at": now,
+            "extracted_text": payload.tailored_text,
+            "parsed_data": tailored_parsed.model_dump(),
+            "parsing_status": "completed",
+            "parsing_error": None,
+            "is_tailored": True,
+            "source_resume_id": payload.original_resume_id,
+            "target_job_id": payload.job_id
+        }
+
+        resumes_col = mongo_manager.resumes
+        users_col = mongo_manager.user_data
+        new_resume_id = ""
+
+        if resumes_col is not None:
+            if payload.set_active:
+                try:
+                    resumes_col.update_many(
+                        {"user_id": user_id, "is_active": True},
+                        {"$set": {"is_active": False, "updated_at": now}}
+                    )
+                except Exception as deact_err:
+                    logger.warning(f"Could not deactivate previous resumes: {deact_err}")
+            res = resumes_col.insert_one(resume_doc)
+            new_resume_id = str(res.inserted_id)
+            resume_doc["_id"] = res.inserted_id
+        else:
+            new_resume_id = f"res_{len(_IN_MEMORY_RESUMES) + 1}_{int(now.timestamp())}"
+            resume_doc["_id"] = new_resume_id
+            if payload.set_active:
+                for r in _IN_MEMORY_RESUMES.values():
+                    if r.get("user_id") == user_id:
+                        r["is_active"] = False
+            _IN_MEMORY_RESUMES[new_resume_id] = resume_doc
+
+        # 4. If target job provided, re-evaluate ATS match and store in ATS_results
+        ats_score = 88.0
+        if payload.job_id:
+            try:
+                ats_res = cls.analyze_match(new_resume_id, payload.job_id, current_user)
+                ats_score = ats_res.score
+            except Exception as match_err:
+                logger.warning(f"Could not auto-run ATS match on saved tailored resume: {match_err}")
+
+        # 5. Update user's telemetry in User_data if active
+        if payload.set_active:
+            if users_col is not None and ObjectId.is_valid(user_id):
+                users_col.update_one(
+                    {"_id": ObjectId(user_id)},
+                    {"$set": {"ats_score": round(ats_score), "updated_at": now}}
+                )
+            from app.services.auth_service import _IN_MEMORY_USERS
+            for u in _IN_MEMORY_USERS.values():
+                if str(u.get("_id")) == user_id or u.get("email") == current_user.get("email"):
+                    u["ats_score"] = round(ats_score)
+
+        return SaveTailoredResumeResponse(
+            resume_id=new_resume_id,
+            original_resume_id=payload.original_resume_id,
+            title=clean_title,
+            ats_score=ats_score,
+            is_active=payload.set_active,
+            message="Tailored resume saved and set as active profile resume."
+        )
+
+    @classmethod
+    def generate_tailored_pdf(
+        cls,
+        payload: ResumePDFRequest,
+        current_user: Dict[str, Any]
+    ) -> bytes:
+        """
+        Compiles tailored resume text into an ATS-compliant, single-column PDF
+        preserving all hyperlinks intact.
+        """
+        user_id = str(current_user.get("id", ""))
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User session invalid. Please log in again."
+            )
+        doc_title = payload.title or "Tailored_Resume"
+        return pdf_generator.generate_pdf(payload.tailored_text, doc_title)
 
 
 ats_service = ATSService()

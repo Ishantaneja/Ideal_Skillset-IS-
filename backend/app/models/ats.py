@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
+from app.models.resume import ParsedResumeData
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +195,83 @@ class ATSResultListItem(BaseModel):
 class ATSResultListResponse(BaseModel):
     items: List[ATSResultListItem]
     total: int
+
+
+# ---------------------------------------------------------------------------
+# Resume Tailoring & ATS Score Optimization Models
+# ---------------------------------------------------------------------------
+
+class ResumeTailorRequest(BaseModel):
+    """
+    Request to tailor a candidate's resume to a target job description.
+    """
+    resume_id: str = Field(..., description="ID of the base parsed resume")
+    job_id: Optional[str] = Field(None, description="ID of the analyzed target job requisition")
+    job_text: Optional[str] = Field(None, description="Optional raw JD text if not selecting a saved job")
+    target_skills: Optional[List[str]] = Field(default_factory=list, description="Specific skills to prioritize in the tailored resume")
+    focus_areas: Optional[List[str]] = Field(default_factory=list, description="Target sections to optimize (summary, skills, experience, projects)")
+
+
+class RewrittenBulletPoint(BaseModel):
+    """
+    Before and after comparison of an experience or project achievement statement.
+    """
+    original: str
+    optimized: str
+    section: str = "Experience"
+    rationale: str = "Enhanced action verb, quantified metrics, and aligned with JD keywords."
+
+
+class ResumeTailorResponse(BaseModel):
+    """
+    Result of tailoring resume to JD, including before/after ATS scores and side-by-side diff.
+    """
+    original_score: float
+    optimized_score: float
+    score_gain: float
+    original_label: str
+    optimized_label: str
+    original_breakdown: ATSScoreBreakdown
+    optimized_breakdown: ATSScoreBreakdown
+    skills_added: List[str] = Field(default_factory=list)
+    keywords_injected: List[str] = Field(default_factory=list)
+    rewritten_bullet_points: List[RewrittenBulletPoint] = Field(default_factory=list)
+    tailored_resume_text: str
+    tailored_parsed_data: ParsedResumeData
+    tailoring_explanations: List[str] = Field(default_factory=list)
+    job_title: Optional[str] = "Target Role"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class SaveTailoredResumeRequest(BaseModel):
+    """
+    Request to save a tailored resume as an official resume record.
+    """
+    original_resume_id: str
+    job_id: Optional[str] = None
+    tailored_text: str = Field(..., min_length=50)
+    title: Optional[str] = "Tailored Resume"
+    set_active: bool = True
+
+
+class SaveTailoredResumeResponse(BaseModel):
+    """
+    Response confirming tailored resume persistence and activation.
+    """
+    resume_id: str
+    original_resume_id: str
+    title: str
+    ats_score: float
+    is_active: bool
+    message: str = "Tailored resume saved and activated successfully."
+
+
+class ResumePDFRequest(BaseModel):
+    """
+    Request payload to generate a downloadable ATS-compliant PDF resume with exact links.
+    """
+    tailored_text: str = Field(..., min_length=20, description="Tailored resume text content")
+    title: Optional[str] = Field(default="Tailored_Resume", description="Document title for the PDF file")
 
 
 # ---------------------------------------------------------------------------

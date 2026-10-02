@@ -186,7 +186,16 @@ class JobService:
         items: List[JobListItem] = []
 
         if jobs_col is not None:
-            cursor = jobs_col.find({"user_id": user_id}).sort("created_at", -1)
+            cursor = jobs_col.find(
+                {"user_id": user_id},
+                projection={
+                    "_id": 1,
+                    "job_info": 1,
+                    "requirements.required_skills": 1,
+                    "source_type": 1,
+                    "created_at": 1,
+                }
+            ).sort("created_at", -1)
             for doc in cursor:
                 job_info = doc.get("job_info", {})
                 reqs = doc.get("requirements", {})

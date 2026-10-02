@@ -165,7 +165,19 @@ class ResumeService:
         items: List[ResumeListItem] = []
 
         if resumes_col is not None:
-            cursor = resumes_col.find({"user_id": user_id}).sort("uploaded_at", -1)
+            cursor = resumes_col.find(
+                {"user_id": user_id},
+                projection={
+                    "_id": 1,
+                    "original_filename": 1,
+                    "file_type": 1,
+                    "file_size": 1,
+                    "is_active": 1,
+                    "uploaded_at": 1,
+                    "parsing_status": 1,
+                    "parsed_data.skills": 1,
+                }
+            ).sort("uploaded_at", -1)
             for doc in cursor:
                 parsed = doc.get("parsed_data", {})
                 skills = parsed.get("skills", []) if isinstance(parsed, dict) else []

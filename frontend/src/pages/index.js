@@ -17,3 +17,7 @@ export { default as ReadinessTwin } from './user/ReadinessTwin';
 // Admin Portal Pages
 export { default as AdminLogin } from './admin/AdminLogin';
 export { default as AdminDashboard } from './admin/AdminDashboard';
+export { default as AdminUsers } from './admin/AdminUsers';
+export { default as AdminJobRoles } from './admin/AdminJobRoles';
+export { default as AdminUserProfile } from './admin/AdminUserProfile';
+export { default as AdminUserReadiness } from './admin/AdminUserReadiness';

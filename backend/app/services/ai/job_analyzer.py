@@ -8,6 +8,28 @@ from app.services.resume_parser import SKILL_TAXONOMY
 
 logger = logging.getLogger("uvicorn.error")
 
+# Precompile skill taxonomy patterns and category cache for O(1) lookups
+SKILL_CATEGORY_MAP: Dict[str, str] = {}
+COMPILED_JOB_SKILL_PATTERNS = []
+
+for canonical_name, data in SKILL_TAXONOMY.items():
+    cat = data.get("category", "Technical")
+    SKILL_CATEGORY_MAP[canonical_name.lower()] = cat
+    pats = []
+    for alias in data.get("aliases", [canonical_name.lower()]):
+        SKILL_CATEGORY_MAP[alias.lower()] = cat
+        pats.append(re.compile(r"(?<![a-zA-Z0-9_\-\.])" + re.escape(alias) + r"(?![a-zA-Z0-9_\-\.])", re.IGNORECASE))
+    COMPILED_JOB_SKILL_PATTERNS.append((canonical_name, cat, pats))
+
+BEHAVIORAL_PATTERNS = {
+    "Problem Solving": [re.compile(re.escape(kw), re.IGNORECASE) for kw in ["problem solving", "analytical", "troubleshoot", "debug"]],
+    "Ownership & Initiative": [re.compile(re.escape(kw), re.IGNORECASE) for kw in ["ownership", "autonomous", "self-starter", "initiative", "lead"]],
+    "Cross-Functional Communication": [re.compile(re.escape(kw), re.IGNORECASE) for kw in ["communication", "collaborat", "team player", "stakeholder"]],
+    "System Architecture & Quality": [re.compile(re.escape(kw), re.IGNORECASE) for kw in ["clean code", "best practices", "testing", "scalab", "architecture"]],
+    "Agile Execution": [re.compile(re.escape(kw), re.IGNORECASE) for kw in ["agile", "scrum", "sprint", "fast-paced"]]
+}
+EXPERIENCE_YEARS_RE = re.compile(r"(\d+\+?\s*(?:-\s*\d+)?\s*years?(?:\s+of\s+[a-zA-Z0-9\s]+)?)", re.IGNORECASE)
+
 
 class JobAnalyzer:
     """
@@ -150,22 +172,18 @@ class JobAnalyzer:
     @classmethod
     def _extract_skills_from_text(cls, text: str) -> List[Dict[str, Any]]:
         """
-        Extracts skills from text using the strict SKILL_TAXONOMY regex.
+        Extracts skills from text using precompiled strict taxonomy patterns.
         """
         results = []
-        for canonical_name, data in SKILL_TAXONOMY.items():
-            aliases = data.get("aliases", [canonical_name.lower()])
+        for canonical_name, cat, pats in COMPILED_JOB_SKILL_PATTERNS:
             total_matches = 0
-            for alias in aliases:
-                escaped = re.escape(alias)
-                pattern = r"(?<![a-zA-Z0-9_\-\.])" + escaped + r"(?![a-zA-Z0-9_\-\.])"
-                matches = len(re.findall(pattern, text, re.IGNORECASE))
-                total_matches += matches
+            for p in pats:
+                total_matches += len(p.findall(text))
 
             if total_matches > 0:
                 results.append({
                     "name": canonical_name,
-                    "category": data.get("category", "Technical"),
+                    "category": cat,
                     "mentions": total_matches
                 })
 
@@ -175,12 +193,7 @@ class JobAnalyzer:
 
     @classmethod
     def _get_category_for_skill(cls, skill_name: str) -> str:
-        for canonical_name, data in SKILL_TAXONOMY.items():
-            if canonical_name.lower() == skill_name.lower():
-                return data.get("category", "Technical")
-            if any(a.lower() == skill_name.lower() for a in data.get("aliases", [])):
-                return data.get("category", "Technical")
-        return "Technical"
+        return SKILL_CATEGORY_MAP.get(skill_name.strip().lower(), "Technical")
 
     @classmethod
     def _extract_experience_requirements(cls, text: str, default_exp: Optional[str]) -> List[str]:
@@ -189,7 +202,7 @@ class JobAnalyzer:
             items.append(f"{default_exp} of practical production or project experience")
 
         # Check for year patterns like '3+ years', '5 years of'
-        matches = re.findall(r"(\d+\+?\s*(?:-\s*\d+)?\s*years?(?:\s+of\s+[a-zA-Z0-9\s]+)?)", text, re.IGNORECASE)
+        matches = EXPERIENCE_YEARS_RE.findall(text)
         for m in matches[:2]:
             clean = m.strip()
             if len(clean) < 60 and clean not in items:
@@ -202,15 +215,8 @@ class JobAnalyzer:
     @classmethod
     def _extract_behavioral_competencies(cls, text: str) -> List[str]:
         competencies = []
-        keywords = {
-            "Problem Solving": ["problem solving", "analytical", "troubleshoot", "debug"],
-            "Ownership & Initiative": ["ownership", "autonomous", "self-starter", "initiative", "lead"],
-            "Cross-Functional Communication": ["communication", "collaborat", "team player", "stakeholder"],
-            "System Architecture & Quality": ["clean code", "best practices", "testing", "scalab", "architecture"],
-            "Agile Execution": ["agile", "scrum", "sprint", "fast-paced"]
-        }
-        for comp_name, kws in keywords.items():
-            if any(re.search(re.escape(kw), text, re.IGNORECASE) for kw in kws):
+        for comp_name, patterns in BEHAVIORAL_PATTERNS.items():
+            if any(p.search(text) for p in patterns):
                 competencies.append(comp_name)
 
         if not competencies:

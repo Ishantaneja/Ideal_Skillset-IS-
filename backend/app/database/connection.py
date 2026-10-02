@@ -29,14 +29,19 @@ class MongoDBManager:
             logger.info(f"Connecting to MongoDB at {settings.MONGODB_URI}...")
             self.client = MongoClient(
                 settings.MONGODB_URI,
+                minPoolSize=10,
+                maxPoolSize=50,
+                maxIdleTimeMS=45000,
                 serverSelectionTimeoutMS=3000,
-                connectTimeoutMS=3000
+                connectTimeoutMS=3000,
+                socketTimeoutMS=5000,
+                retryWrites=True
             )
             # Trigger quick server ping to test connectivity
             self.client.admin.command('ping')
             self.db = self.client[settings.DATABASE_NAME]
             self.is_connected = True
-            logger.info(f"Successfully connected to MongoDB database: '{settings.DATABASE_NAME}'")
+            logger.info(f"Successfully connected to MongoDB database: '{settings.DATABASE_NAME}' (Connection pool: min=10, max=50)")
 
             # Ensure required indexes on collections
             self._init_indexes()
@@ -64,7 +69,9 @@ class MongoDBManager:
             # 1. Unique index on User_data.email
             try:
                 user_col = self.db["User_data"]
-                user_col.create_index("email", unique=True, name="idx_user_email_unique")
+                existing_indexes = user_col.index_information()
+                if "idx_user_email_unique" not in existing_indexes and "email_1" not in existing_indexes:
+                    user_col.create_index("email", unique=True, name="idx_user_email_unique")
                 logger.info("Verified unique index on User_data.email")
             except Exception as e:
                 logger.warning(f"Note on User_data index creation: {e}")
@@ -108,7 +115,11 @@ class MongoDBManager:
                     [("user_id", ASCENDING), ("created_at", DESCENDING)],
                     name="idx_ats_user_created"
                 )
-                logger.info("Verified compound index on ATS_results(user_id, created_at)")
+                ats_col.create_index(
+                    [("user_id", ASCENDING), ("resume_id", ASCENDING), ("job_id", ASCENDING)],
+                    name="idx_ats_user_resume_job"
+                )
+                logger.info("Verified compound indexes on ATS_results")
             except Exception as e:
                 logger.warning(f"Note on ATS_results index creation: {e}")
 
@@ -119,7 +130,11 @@ class MongoDBManager:
                     [("user_id", ASCENDING), ("created_at", DESCENDING)],
                     name="idx_skill_gaps_user_created"
                 )
-                logger.info("Verified compound index on Skill_gaps(user_id, created_at)")
+                sg_col.create_index(
+                    [("user_id", ASCENDING), ("resume_id", ASCENDING), ("job_id", ASCENDING)],
+                    name="idx_sg_user_resume_job"
+                )
+                logger.info("Verified compound indexes on Skill_gaps")
             except Exception as e:
                 logger.warning(f"Note on Skill_gaps index creation: {e}")
 
@@ -167,6 +182,7 @@ class MongoDBManager:
                 apps_col = self.db["Candidate_applications"]
                 apps_col.create_index([("job_id", ASCENDING), ("candidate_user_id", ASCENDING)], name="idx_applications_job_cand")
                 apps_col.create_index([("company_id", ASCENDING), ("current_stage", ASCENDING)], name="idx_applications_comp_stage")
+                apps_col.create_index([("company_id", ASCENDING), ("job_id", ASCENDING), ("current_stage", ASCENDING)], name="idx_applications_comp_job_stage")
                 apps_col.create_index([("recruiter_id", ASCENDING), ("created_at", DESCENDING)], name="idx_applications_rec_created")
 
                 # Candidate_evaluations
@@ -199,6 +215,18 @@ class MongoDBManager:
                 # Simulation_runs
                 sim_col = self.db["Simulation_runs"]
                 sim_col.create_index([("job_id", ASCENDING), ("company_id", ASCENDING)], name="idx_sim_runs_job_comp")
+
+                # Unique index on Job_Roles.name
+                try:
+                    job_roles_col = self.db["Job_Roles"]
+                    job_roles_col.create_index(
+                        "name",
+                        unique=True,
+                        name="idx_job_roles_name_unique"
+                    )
+                    logger.info("Verified unique index on Job_Roles.name")
+                except Exception as e:
+                    logger.warning(f"Note on Job_Roles index creation: {e}")
 
                 logger.info("Verified indexes for Recruiter AI Hiring Copilot collections")
             except Exception as e:
@@ -294,6 +322,14 @@ class MongoDBManager:
     @property
     def Readiness(self) -> Optional[Collection]:
         return self.get_collection("Readiness")
+
+    @property
+    def job_roles(self) -> Optional[Collection]:
+        return self.get_collection("Job_Roles")
+
+    @property
+    def Job_Roles(self) -> Optional[Collection]:
+        return self.get_collection("Job_Roles")
 
     @property
     def skills(self) -> Optional[Collection]:

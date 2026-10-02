@@ -83,6 +83,9 @@ class AuthService:
             "role": UserRole.USER.value,
             "target_role": target_role,
             "skills": ["SQL", "Python", "Excel"],
+            "is_online": False,
+            "last_seen_at": None,
+            "is_active": True,
             "created_at": now,
             "updated_at": now,
         }
@@ -150,10 +153,38 @@ class AuthService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        # Check whether candidate account is active
+        if user_doc.get("is_active", True) is False:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account has been deactivated. Please contact the administrator."
+            )
+
         user_id = str(user_doc.get("_id", ""))
         name = user_doc.get("name", "User")
         role = user_doc.get("role", UserRole.USER.value)
         target_role = user_doc.get("target_role", "Junior Data Analyst")
+
+        # Mark candidate as online and update last activity
+        now = datetime.now(timezone.utc)
+
+        if users_col is not None:
+            users_col.update_one(
+                {"_id": user_doc["_id"]},
+                {
+                    "$set": {
+                        "is_online": True,
+                        "last_seen_at": now,
+                        "last_login_at": now,
+                        "updated_at": now,
+                    }
+                }
+            )
+        else:
+            user_doc["is_online"] = True
+            user_doc["last_seen_at"] = now
+            user_doc["last_login_at"] = now
+            user_doc["updated_at"] = now
 
         # Issue JWT
         token = create_access_token({
@@ -389,6 +420,54 @@ class AuthService:
             created_at=current_user.get("created_at"),
             updated_at=current_user.get("updated_at")
         )
+
+    @staticmethod
+    def logout_user(current_user: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Logs out the currently authenticated user and marks them offline.
+        Updates the last_seen_at timestamp.
+        """
+        user_id = str(current_user.get("id", ""))
+
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid user identity"
+            )
+
+        now = datetime.now(timezone.utc)
+        users_col = mongo_manager.user_data
+
+        if users_col is not None:
+            query = (
+                {"_id": ObjectId(user_id)}
+                if ObjectId.is_valid(user_id)
+                else {"_id": user_id}
+            )
+
+            users_col.update_one(
+                query,
+                {
+                    "$set": {
+                        "is_online": False,
+                        "last_seen_at": now,
+                        "updated_at": now,
+                    }
+                }
+            )
+        else:
+            for user in _IN_MEMORY_USERS.values():
+                if str(user.get("_id")) == user_id:
+                    user["is_online"] = False
+                    user["last_seen_at"] = now
+                    user["updated_at"] = now
+                    break
+
+        return {
+            "status": "success",
+            "message": "Logged out successfully",
+            "last_seen_at": now,
+        }
 
 
 auth_service = AuthService()

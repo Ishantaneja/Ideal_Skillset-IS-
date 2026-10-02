@@ -43,18 +43,11 @@ const RecruiterSettings = lazy(() => import('@/pages/recruiter/RecruiterSettings
 // Lazy-loaded Admin Pages
 const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard'));
 const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'));
-const AdminResumes = lazy(() => import('@/pages/admin/AdminResumes'));
-const AdminJobs = lazy(() => import('@/pages/admin/AdminJobs'));
-const AdminATS = lazy(() => import('@/pages/admin/AdminATS'));
-const AdminSkills = lazy(() => import('@/pages/admin/AdminSkills'));
-const AdminReadiness = lazy(() => import('@/pages/admin/AdminReadiness'));
-const AdminAssessments = lazy(() => import('@/pages/admin/AdminAssessments'));
-const AdminInterviews = lazy(() => import('@/pages/admin/AdminInterviews'));
-const AdminRoadmaps = lazy(() => import('@/pages/admin/AdminRoadmaps'));
-const AdminAI = lazy(() => import('@/pages/admin/AdminAI'));
-const AdminAuditLogs = lazy(() => import('@/pages/admin/AdminAuditLogs'));
-const AdminNotifications = lazy(() => import('@/pages/admin/AdminNotifications'));
-const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'));
+const AdminUserProfile = lazy(() => import('@/pages/admin/AdminUserProfile'));
+const AdminUserReadiness = lazy(
+  () => import('@/pages/admin/AdminUserReadiness')
+);
+const AdminJobRoles = lazy(() => import('@/pages/admin/AdminJobRoles'));
 
 export default function AppRoutes() {
   return (
@@ -121,19 +114,10 @@ export default function AppRoutes() {
           }
         >
           <Route path={ROUTES.ADMIN_DASHBOARD} element={<AdminDashboard />} />
-          <Route path={ROUTES.ADMIN_USERS} element={<AdminUsers />} />
-          <Route path={ROUTES.ADMIN_RESUMES} element={<AdminResumes />} />
-          <Route path={ROUTES.ADMIN_JOBS} element={<AdminJobs />} />
-          <Route path={ROUTES.ADMIN_ATS} element={<AdminATS />} />
-          <Route path={ROUTES.ADMIN_SKILLS} element={<AdminSkills />} />
-          <Route path={ROUTES.ADMIN_READINESS} element={<AdminReadiness />} />
-          <Route path={ROUTES.ADMIN_ASSESSMENTS} element={<AdminAssessments />} />
-          <Route path={ROUTES.ADMIN_INTERVIEWS} element={<AdminInterviews />} />
-          <Route path={ROUTES.ADMIN_ROADMAPS} element={<AdminRoadmaps />} />
-          <Route path={ROUTES.ADMIN_AI} element={<AdminAI />} />
-          <Route path={ROUTES.ADMIN_AUDIT_LOGS} element={<AdminAuditLogs />} />
-          <Route path={ROUTES.ADMIN_NOTIFICATIONS} element={<AdminNotifications />} />
-          <Route path={ROUTES.ADMIN_SETTINGS} element={<AdminSettings />} />
+          <Route path="/admin/job-roles" element={<AdminJobRoles />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/users/:id" element={<AdminUserProfile />} />
+          <Route path="/admin/users/:id/readiness" element={<AdminUserReadiness />} />
         </Route>
 
         {/* Fallback Route */}

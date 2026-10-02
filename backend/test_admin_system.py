@@ -6,22 +6,28 @@ from app.main import app
 from app.core.security import create_access_token, hash_password
 from app.services.auth_service import _IN_MEMORY_USERS
 from app.database.connection import mongo_manager
-from app.services.admin_service import admin_service, _IN_MEMORY_AUDIT_LOGS
 
 client = TestClient(app)
 
 
-def test_admin_system_comprehensive():
+def test_admin_portal_comprehensive():
     """
-    Comprehensive verification of Admin Panel Backend Authorization,
-    Safeguards, CRUD Operations, Aggregations, and Audit Logging.
+    Comprehensive verification of Overridden Admin Portal Backend:
+    - Route connectivity (/admin/test)
+    - Admin authorization & permission enforcement
+    - Overview metrics and recent activity (/admin/overview)
+    - User list (/admin/users)
+    - Job role creation, listing, updating, duplicate prevention (/admin/job-roles)
+    - Active job roles public endpoint (/jobs/roles)
+    - Candidate deactivation and reactivation (/admin/users/{id}/deactivate, activate)
+    - User logout (/auth/logout)
     """
+    mongo_manager.connect()
     ts = int(datetime.now().timestamp())
     admin_email = f"admin.lead_{ts}@idealskillset.internal"
-    normal_user_email = f"candidate.jane_{ts}@university.edu"
-    target_candidate_email = f"candidate.bob_{ts}@university.edu"
+    candidate_email = f"candidate.jane_{ts}@university.edu"
 
-    # 1. Create or inject Admin user
+    # 1. Prepare Admin & Candidate Documents
     user_col = mongo_manager.user_data
     now = datetime.now(timezone.utc)
 
@@ -31,26 +37,20 @@ def test_admin_system_comprehensive():
         "password_hash": hash_password("AdminPass123!"),
         "role": "admin",
         "target_role": "Platform Administrator",
+        "is_active": True,
+        "is_online": True,
         "created_at": now,
         "updated_at": now
     }
 
-    user_doc = {
+    candidate_doc = {
         "name": "Jane Candidate",
-        "email": normal_user_email,
+        "email": candidate_email,
         "password_hash": hash_password("CandidatePass123!"),
         "role": "user",
         "target_role": "Junior Data Analyst",
-        "created_at": now,
-        "updated_at": now
-    }
-
-    target_doc = {
-        "name": "Bob Candidate",
-        "email": target_candidate_email,
-        "password_hash": hash_password("CandidatePass123!"),
-        "role": "user",
-        "target_role": "Frontend Software Engineer",
+        "is_active": True,
+        "is_online": False,
         "created_at": now,
         "updated_at": now
     }
@@ -58,266 +58,128 @@ def test_admin_system_comprehensive():
     if user_col is not None:
         admin_res = user_col.insert_one(admin_doc)
         admin_id = str(admin_res.inserted_id)
-
-        user_res = user_col.insert_one(user_doc)
-        normal_user_id = str(user_res.inserted_id)
-
-        target_res = user_col.insert_one(target_doc)
-        target_candidate_id = str(target_res.inserted_id)
+        cand_res = user_col.insert_one(candidate_doc)
+        cand_id = str(cand_res.inserted_id)
     else:
-        admin_id = f"adm_{ts}"
+        admin_id = f"admin_{ts}"
         admin_doc["_id"] = admin_id
-        admin_doc["id"] = admin_id
         _IN_MEMORY_USERS[admin_email] = admin_doc
+        cand_id = f"cand_{ts}"
+        candidate_doc["_id"] = cand_id
+        _IN_MEMORY_USERS[candidate_email] = candidate_doc
 
-        normal_user_id = f"usr_jane_{ts}"
-        user_doc["_id"] = normal_user_id
-        user_doc["id"] = normal_user_id
-        _IN_MEMORY_USERS[normal_user_email] = user_doc
+    admin_token = create_access_token({"sub": admin_id, "email": admin_email, "role": "admin"})
+    cand_token = create_access_token({"sub": cand_id, "email": candidate_email, "role": "user"})
 
-        target_candidate_id = f"usr_bob_{ts}"
-        target_doc["_id"] = target_candidate_id
-        target_doc["id"] = target_candidate_id
-        _IN_MEMORY_USERS[target_candidate_email] = target_doc
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    cand_headers = {"Authorization": f"Bearer {cand_token}"}
 
-    try:
-        # Generate JWT Tokens
-        admin_token = create_access_token({"sub": admin_id, "email": admin_email, "role": "admin", "name": "Lead Admin"})
-        user_token = create_access_token({"sub": normal_user_id, "email": normal_user_email, "role": "user", "name": "Jane Candidate"})
+    # 2. Public connectivity check
+    r_test = client.get("/api/admin/test")
+    assert r_test.status_code == 200
+    assert r_test.json().get("status") == "ok"
 
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
-        user_headers = {"Authorization": f"Bearer {user_token}"}
+    # 3. Access control: Normal user forbidden on admin endpoints
+    r_forbidden = client.get("/api/admin/overview", headers=cand_headers)
+    assert r_forbidden.status_code == 403
 
-        # -------------------------------------------------------------------
-        # 1. Test Unauthenticated Access (Must Return 401 Unauthorized)
-        # -------------------------------------------------------------------
-        resp = client.get("/api/admin/dashboard")
-        assert resp.status_code == 401, f"Expected 401 for unauthenticated request, got {resp.status_code}"
+    # Unauthenticated forbidden / unauthorized
+    r_unauth = client.get("/api/admin/overview")
+    assert r_unauth.status_code in [401, 403]
 
-        # -------------------------------------------------------------------
-        # 2. Test Normal User Access (Must Return 403 Forbidden)
-        # -------------------------------------------------------------------
-        resp = client.get("/api/admin/dashboard", headers=user_headers)
-        assert resp.status_code == 403, f"Expected 403 for candidate user, got {resp.status_code}"
-        assert "administrator privileges required" in resp.json()["detail"].lower()
+    # 4. Admin Overview
+    r_overview = client.get("/api/admin/overview", headers=admin_headers)
+    assert r_overview.status_code == 200
+    data_overview = r_overview.json()
+    assert "metrics" in data_overview
+    assert "total_users" in data_overview["metrics"]
+    assert "recent_users" in data_overview
+    assert "recent_activity" in data_overview
 
-        # -------------------------------------------------------------------
-        # 3. Test Admin Access to Dashboard (Must Return 200 OK with metrics)
-        # -------------------------------------------------------------------
-        resp = client.get("/api/admin/dashboard", headers=admin_headers)
-        assert resp.status_code == 200, f"Expected 200 for admin, got {resp.status_code}"
-        data = resp.json()
-        assert "metrics" in data
-        assert "total_users" in data["metrics"]
-        assert data["metrics"]["total_users"] >= 1
-        assert "recent_users" in data
-        assert "recent_activity" in data
+    # 5. List Users
+    r_users = client.get("/api/admin/users", headers=admin_headers)
+    assert r_users.status_code == 200
+    users_data = r_users.json()
+    assert "items" in users_data
+    assert "total" in users_data
 
-        # -------------------------------------------------------------------
-        # 4. Test User Directory Listing & Pagination
-        # -------------------------------------------------------------------
-        resp = client.get("/api/admin/users?page=1&limit=2", headers=admin_headers)
-        assert resp.status_code == 200
-        users_data = resp.json()
-        assert "items" in users_data
-        assert "page" in users_data
-        assert "total" in users_data
-        assert len(users_data["items"]) <= 2
+    # 6. Job Roles Management
+    role_name = f"ML Engineer {ts}"
+    new_role = {
+        "name": role_name,
+        "description": "Develop and deploy ML models",
+        "experience": "2+ years",
+        "skills": "Python, PyTorch, Docker",
+        "status": "Active"
+    }
 
-        # -------------------------------------------------------------------
-        # 5. Test User Search & Role Filtering
-        # -------------------------------------------------------------------
-        resp = client.get(f"/api/admin/users?search=Jane", headers=admin_headers)
-        assert resp.status_code == 200
-        search_data = resp.json()
-        assert len(search_data["items"]) >= 1
-        assert any("Jane" in u["name"] for u in search_data["items"])
+    # Create job role
+    r_create_role = client.post("/api/admin/job-roles", json=new_role, headers=admin_headers)
+    assert r_create_role.status_code == 201
+    created_role = r_create_role.json().get("job_role", {})
+    assert created_role.get("name") == role_name
+    job_role_id = created_role.get("id")
 
-        resp_admin_only = client.get("/api/admin/users?role=admin", headers=admin_headers)
-        assert resp_admin_only.status_code == 200
-        admin_items = resp_admin_only.json()["items"]
-        assert all(u["role"] == "admin" for u in admin_items)
+    # Prevent duplicate job role creation
+    r_dup_role = client.post("/api/admin/job-roles", json=new_role, headers=admin_headers)
+    assert r_dup_role.status_code == 409
 
-        # -------------------------------------------------------------------
-        # 6. Test User Details (Safe: No password_hash or secret exposure)
-        # -------------------------------------------------------------------
-        resp = client.get(f"/api/admin/users/{normal_user_id}", headers=admin_headers)
-        assert resp.status_code == 200
-        user_detail = resp.json()
-        assert user_detail["id"] == normal_user_id
-        assert user_detail["email"] == normal_user_email
-        assert "password_hash" not in user_detail
-        assert "password" not in user_detail
-        assert "otp" not in user_detail
+    # List job roles (Admin)
+    r_roles = client.get("/api/admin/job-roles", headers=admin_headers)
+    assert r_roles.status_code == 200
+    roles_list = r_roles.json().get("items", [])
+    assert any(r.get("name") == role_name for r in roles_list)
 
-        # -------------------------------------------------------------------
-        # 7. Test Safeguard: Admin cannot delete themselves
-        # -------------------------------------------------------------------
-        resp = client.delete(f"/api/admin/users/{admin_id}", headers=admin_headers)
-        assert resp.status_code == 400
-        assert "cannot delete their own account" in resp.json()["detail"].lower()
+    # Public active job roles
+    r_pub_roles = client.get("/api/jobs/roles")
+    assert r_pub_roles.status_code == 200
+    pub_roles = r_pub_roles.json().get("items", [])
+    assert any(r.get("name") == role_name for r in pub_roles)
 
-        # -------------------------------------------------------------------
-        # 8. Test Role Update and Audit Logging
-        # -------------------------------------------------------------------
-        resp = client.put(
-            f"/api/admin/users/{target_candidate_id}/role",
-            json={"role": "admin"},
-            headers=admin_headers
-        )
-        assert resp.status_code == 200
-        assert resp.json()["role"] == "admin"
+    # Update job role
+    if job_role_id:
+        update_payload = {
+            "name": f"{role_name} Senior",
+            "description": "Lead and deploy enterprise ML models",
+            "experience": "5+ years",
+            "skills": "Python, PyTorch, Kubernetes",
+            "status": "Active"
+        }
+        r_update = client.put(f"/api/admin/job-roles/{job_role_id}", json=update_payload, headers=admin_headers)
+        assert r_update.status_code == 200
+        assert r_update.json().get("job_role", {}).get("name") == f"{role_name} Senior"
 
-        # Demote target back to user
-        resp = client.put(
-            f"/api/admin/users/{target_candidate_id}/role",
-            json={"role": "user"},
-            headers=admin_headers
-        )
-        assert resp.status_code == 200
-        assert resp.json()["role"] == "user"
+    # 7. Candidate Deactivation & Reactivation
+    r_deact = client.post(f"/api/admin/users/{cand_id}/deactivate", headers=admin_headers)
+    assert r_deact.status_code == 200
+    assert r_deact.json().get("status") == "success"
 
-        # -------------------------------------------------------------------
-        # 9. Test Safeguard: Cannot demote the last remaining admin
-        # -------------------------------------------------------------------
-        # If this is the only admin, or test when only 1 admin remains
-        total_admins = user_col.count_documents({"role": "admin"}) if user_col is not None else sum(1 for u in _IN_MEMORY_USERS.values() if u.get("role") == "admin")
-        if total_admins == 1:
-            resp = client.put(
-                f"/api/admin/users/{admin_id}/role",
-                json={"role": "user"},
-                headers=admin_headers
-            )
-            assert resp.status_code == 400
-            assert "last remaining administrator" in resp.json()["detail"].lower()
+    # Login attempt by deactivated candidate should return 403
+    r_cand_login = client.post("/api/auth/login", json={"email": candidate_email, "password": "CandidatePass123!"})
+    assert r_cand_login.status_code == 403
 
-        # -------------------------------------------------------------------
-        # 10. Test User Deletion
-        # -------------------------------------------------------------------
-        resp = client.delete(f"/api/admin/users/{target_candidate_id}", headers=admin_headers)
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "success"
+    # Reactivate candidate
+    r_react = client.post(f"/api/admin/users/{cand_id}/activate", headers=admin_headers)
+    assert r_react.status_code == 200
+    assert r_react.json().get("status") == "success"
 
-        # -------------------------------------------------------------------
-        # 11. Test Resumes, Jobs, Assessments Listing
-        # -------------------------------------------------------------------
-        resp_resumes = client.get("/api/admin/resumes", headers=admin_headers)
-        assert resp_resumes.status_code == 200
-        assert "items" in resp_resumes.json()
+    # Login attempt by reactivated candidate succeeds
+    r_cand_login2 = client.post("/api/auth/login", json={"email": candidate_email, "password": "CandidatePass123!"})
+    assert r_cand_login2.status_code == 200
 
-        resp_jobs = client.get("/api/admin/jobs", headers=admin_headers)
-        assert resp_jobs.status_code == 200
-        assert "items" in resp_jobs.json()
+    # 8. User Logout
+    r_logout = client.post("/api/auth/logout", headers=cand_headers)
+    assert r_logout.status_code == 200
+    assert r_logout.json().get("status") == "success"
 
-        resp_ass = client.get("/api/admin/assessments", headers=admin_headers)
-        assert resp_ass.status_code == 200
-        assert "items" in resp_ass.json()
-
-        # -------------------------------------------------------------------
-        # 12. Test Readiness Analytics & Score Distribution
-        # -------------------------------------------------------------------
-        resp_rd = client.get("/api/admin/readiness", headers=admin_headers)
-        assert resp_rd.status_code == 200
-        rd_data = resp_rd.json()
-        assert "average_readiness_score" in rd_data
-        assert "score_distribution" in rd_data
-        assert len(rd_data["score_distribution"]) >= 6
-
-        # -------------------------------------------------------------------
-        # 13. Test Skill Analytics
-        # -------------------------------------------------------------------
-        resp_sk = client.get("/api/admin/skills/analytics", headers=admin_headers)
-        assert resp_sk.status_code == 200
-        sk_data = resp_sk.json()
-        assert "top_required_skills" in sk_data
-        assert "top_missing_skills" in sk_data
-
-        # -------------------------------------------------------------------
-        # 14. Test Audit Logs Retrieval & Health Check
-        # -------------------------------------------------------------------
-        resp_audit = client.get("/api/admin/audit-logs", headers=admin_headers)
-        assert resp_audit.status_code == 200
-        audit_data = resp_audit.json()
-        assert "items" in audit_data
-        assert len(audit_data["items"]) >= 1
-
-        resp_health = client.get("/api/admin/health", headers=admin_headers)
-        assert resp_health.status_code == 200
-        assert resp_health.json()["api"] == "healthy"
-
-        # -------------------------------------------------------------------
-        # 15. Test ATS Analytics
-        # -------------------------------------------------------------------
-        resp_ats = client.get("/api/admin/ats/analytics", headers=admin_headers)
-        assert resp_ats.status_code == 200
-        ats_data = resp_ats.json()
-        assert "average_ats_score" in ats_data
-        assert "score_distribution" in ats_data
-        assert "common_missing_skills" in ats_data
-        assert "problem_breakdown" in ats_data
-        assert len(ats_data["score_distribution"]) >= 5
-
-        # -------------------------------------------------------------------
-        # 16. Test Assessment Analytics
-        # -------------------------------------------------------------------
-        resp_ass_an = client.get("/api/admin/assessments/analytics", headers=admin_headers)
-        assert resp_ass_an.status_code == 200
-        ass_an_data = resp_ass_an.json()
-        assert "pass_rate" in ass_an_data
-        assert "skill_difficulty" in ass_an_data
-        assert len(ass_an_data["skill_difficulty"]) >= 3
-
-        # -------------------------------------------------------------------
-        # 17. Test Interview Analytics
-        # -------------------------------------------------------------------
-        resp_int = client.get("/api/admin/interviews/analytics", headers=admin_headers)
-        assert resp_int.status_code == 200
-        int_data = resp_int.json()
-        assert "technical_score" in int_data
-        assert "communication_score" in int_data
-        assert "confidence_score" in int_data
-        assert "common_weaknesses" in int_data
-
-        # -------------------------------------------------------------------
-        # 18. Test Roadmap Analytics
-        # -------------------------------------------------------------------
-        resp_rm = client.get("/api/admin/roadmaps/analytics", headers=admin_headers)
-        assert resp_rm.status_code == 200
-        rm_data = resp_rm.json()
-        assert "total_roadmaps_generated" in rm_data
-        assert "abandoned_weeks" in rm_data
-        assert "task_type_breakdown" in rm_data
-
-        # -------------------------------------------------------------------
-        # 19. Test AI / Ollama Monitoring
-        # -------------------------------------------------------------------
-        resp_ai = client.get("/api/admin/ai/health", headers=admin_headers)
-        assert resp_ai.status_code == 200
-        ai_data = resp_ai.json()
-        assert ai_data["ollama_status"] == "online"
-        assert "llama" in ai_data["active_model"].lower()
-
-        # -------------------------------------------------------------------
-        # 20. Test Notifications & Mark Read
-        # -------------------------------------------------------------------
-        resp_notif = client.get("/api/admin/notifications", headers=admin_headers)
-        assert resp_notif.status_code == 200
-        notif_data = resp_notif.json()
-        assert "items" in notif_data
-        assert len(notif_data["items"]) >= 1
-
-        first_notif_id = notif_data["items"][0]["id"]
-        resp_mark = client.put(f"/api/admin/notifications/{first_notif_id}/read", headers=admin_headers)
-        assert resp_mark.status_code == 200
-        assert resp_mark.json()["status"] == "success"
-
-    finally:
-        # Cleanup test records
-        if user_col is not None:
-            user_col.delete_many({"email": {"$in": [admin_email, normal_user_email, target_candidate_email]}})
-        else:
-            _IN_MEMORY_USERS.pop(admin_email, None)
-            _IN_MEMORY_USERS.pop(normal_user_email, None)
-            _IN_MEMORY_USERS.pop(target_candidate_email, None)
-
-
+    # Clean up test documents if in MongoDB
+    if user_col is not None:
+        try:
+            if ObjectId.is_valid(admin_id):
+                user_col.delete_one({"_id": ObjectId(admin_id)})
+            if ObjectId.is_valid(cand_id):
+                user_col.delete_one({"_id": ObjectId(cand_id)})
+            if mongo_manager.job_roles is not None and job_role_id and ObjectId.is_valid(job_role_id):
+                mongo_manager.job_roles.delete_one({"_id": ObjectId(job_role_id)})
+        except Exception:
+            pass

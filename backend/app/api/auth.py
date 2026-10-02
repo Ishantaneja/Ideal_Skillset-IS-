@@ -165,3 +165,16 @@ async def get_me(current_user: Dict[str, Any] = Depends(get_current_user)):
     Requires: `Authorization: Bearer <JWT_TOKEN>`
     """
     return auth_service.get_user_profile(current_user)
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_200_OK,
+    summary="User Logout"
+)
+async def logout(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """
+    Logs out the currently authenticated user and marks them offline.
+    Requires: Authorization: Bearer <JWT_TOKEN>
+    """
+    return auth_service.logout_user(current_user)

@@ -98,6 +98,83 @@ SKILL_TAXONOMY: Dict[str, Dict[str, Any]] = {
     "Postman": {"category": "Tools", "aliases": ["postman", "postman api"]},
 }
 
+# ===========================================================================
+# Precompiled Regex Patterns for High Performance Parsing
+# ===========================================================================
+URL_PATTERN = re.compile(r"https?://\S+")
+EMAIL_PATTERN = re.compile(r"\S+@\S+")
+SKILLS_SECTION_PATTERN = re.compile(
+    r"(?:skills|technical skills|core competencies|technologies|tools & technologies|key skills)[:\s\n]+([\s\S]+?)(?:\n\s*\n\s*[A-Z]|\n[A-Z\s]{4,}|\Z)",
+    re.IGNORECASE
+)
+JAVA_NOT_SCRIPT_PATTERN = re.compile(r"\bjava\b(?!\s*script)", re.IGNORECASE)
+EXCEL_CONTEXT_PATTERN = re.compile(
+    r"(?:ms|microsoft|advanced|data|sheets|vba)\s+excel|excel\s+(?:sheets|formulas|vba|pivot|charts)",
+    re.IGNORECASE
+)
+
+# Precompile all taxonomy skill aliases once
+COMPILED_SKILL_PATTERNS = [
+    (
+        skill_name,
+        meta["category"],
+        [
+            (
+                alias,
+                re.compile(r"(?<![a-zA-Z0-9_])" + re.escape(alias.strip()) + r"(?![a-zA-Z0-9_])", re.IGNORECASE)
+            )
+            for alias in meta["aliases"]
+        ]
+    )
+    for skill_name, meta in SKILL_TAXONOMY.items()
+]
+
+# Education precompiled patterns
+DEGREE_PATTERN = re.compile(
+    r"\b(b\.?tech|b\.?e\.?|bachelor\s+of\s+[a-zA-Z\s]+|b\.?s\.?|b\.?sc|bca|"
+    r"m\.?tech|m\.?e\.?|master\s+of\s+[a-zA-Z\s]+|m\.?s\.?|m\.?sc|mca|mba|"
+    r"ph\.?d|doctor\s+of\s+philosophy|associate\s+degree)\b",
+    re.IGNORECASE
+)
+GPA_PATTERN = re.compile(r"(?:gpa|cgpa|score)[:\s]*([0-9]+(?:\.[0-9]+)?(?:\s*/\s*[0-9]+)?)", re.IGNORECASE)
+YEAR_RANGE_PATTERN = re.compile(r"\b(20[0-2][0-9]|19[8-9][0-9])\s*(?:-|–|to)\s*(20[0-3][0-9]|present|current)?\b", re.IGNORECASE)
+FIELD_STUDY_PATTERN = re.compile(r"(?:in|of)\s+([A-Za-z\s&]+?)(?:,|\.|\||-|\(|$|\d)", re.IGNORECASE)
+INSTITUTION_PATTERN = re.compile(r"([A-Za-z\s]+(?:University|Institute|College|Academy|School)[A-Za-z\s]*)", re.IGNORECASE)
+
+# Experience precompiled patterns
+TITLE_PATTERN = re.compile(
+    r"\b((?:Senior|Junior|Lead|Principal|Associate|Staff)?\s*"
+    r"(?:Software Engineer|Software Developer|Data Analyst|Data Scientist|Data Engineer|"
+    r"Full Stack Developer|Frontend Developer|Backend Developer|DevOps Engineer|"
+    r"Product Manager|Project Manager|QA Engineer|Machine Learning Engineer|Intern))\b",
+    re.IGNORECASE
+)
+DATE_PATTERN = re.compile(
+    r"\b((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}|\d{4})\s*(?:-|–|to)\s*"
+    r"((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}|\d{4}|Present|Current)\b",
+    re.IGNORECASE
+)
+COMPANY_PATTERN = re.compile(
+    r"(?:at|@|,)\s*([A-Za-z0-9\s&]+(?:Inc|LLC|Corp|Technologies|Solutions|Ltd|Labs|Systems)?)\b",
+    re.IGNORECASE
+)
+
+# Project & section precompiled patterns
+PROJECT_HEADER_PATTERN = re.compile(r"^(?:projects|key projects|personal projects|academic projects)\b", re.IGNORECASE)
+SECTION_STOP_PATTERN = re.compile(r"^(?:experience|education|skills|certifications|awards)\b", re.IGNORECASE)
+
+# Certifications precompiled rules
+COMPILED_CERT_RULES = [
+    (re.compile(r"(AWS Certified [A-Za-z\s]+)", re.IGNORECASE), "Amazon Web Services"),
+    (re.compile(r"(Microsoft Certified: [A-Za-z\s]+|Azure Fundamentals|Azure Administrator|Azure Developer)", re.IGNORECASE), "Microsoft"),
+    (re.compile(r"(Google Cloud Certified [A-Za-z\s]+|Associate Cloud Engineer)", re.IGNORECASE), "Google Cloud"),
+    (re.compile(r"(Certified ScrumMaster|CSM|Professional Scrum Master|PSM)", re.IGNORECASE), "Scrum Alliance / Scrum.org"),
+    (re.compile(r"(CompTIA [A-Za-z\+\s]+)", re.IGNORECASE), "CompTIA"),
+    (re.compile(r"(Cisco Certified [A-Za-z\s]+|CCNA|CCNP)", re.IGNORECASE), "Cisco"),
+    (re.compile(r"(TensorFlow Developer Certificate)", re.IGNORECASE), "Google"),
+    (re.compile(r"(Meta Frontend Developer|Meta Backend Developer|Meta Database Engineer)", re.IGNORECASE), "Meta"),
+]
+
 
 class ResumeParser:
     """
@@ -114,45 +191,35 @@ class ResumeParser:
         """
         Scans text for skills from the taxonomy using strict word boundary matching.
         Strips URLs, email addresses, and metadata to eliminate false positives.
+        Uses precompiled patterns for maximum evaluation throughput.
         """
         if not text:
             return []
 
-        # 1. Clean out URLs, email addresses, and filenames so they don't trigger false positives (e.g. github.com -> Git)
-        sanitized_text = re.sub(r"https?://\S+", " ", text)
-        sanitized_text = re.sub(r"\S+@\S+", " ", sanitized_text)
+        # 1. Clean out URLs, email addresses, and filenames
+        sanitized_text = URL_PATTERN.sub(" ", text)
+        sanitized_text = EMAIL_PATTERN.sub(" ", sanitized_text)
         sanitized_text = f" {sanitized_text} "
 
         found_skills: Dict[str, SkillItem] = {}
 
         # 2. Check if a dedicated skills section exists for higher context weighting
-        skills_section_match = re.search(
-            r"(?:skills|technical skills|core competencies|technologies|tools & technologies|key skills)[:\s\n]+([\s\S]+?)(?:\n\s*\n\s*[A-Z]|\n[A-Z\s]{4,}|\Z)",
-            sanitized_text,
-            re.IGNORECASE
-        )
+        skills_section_match = SKILLS_SECTION_PATTERN.search(sanitized_text)
         skills_section_text = skills_section_match.group(1) if skills_section_match else ""
 
-        for skill_name, meta in SKILL_TAXONOMY.items():
-            category = meta["category"]
-            for alias in meta["aliases"]:
-                # Require strict boundary
-                # Handle special characters in skills like C++, C#, .NET
-                escaped_alias = re.escape(alias.strip())
-                pattern = r"(?<![a-zA-Z0-9_])" + escaped_alias + r"(?![a-zA-Z0-9_])"
-
+        for skill_name, category, alias_patterns in COMPILED_SKILL_PATTERNS:
+            for alias, pattern in alias_patterns:
                 # Check in skills section first, or in overall document
-                if re.search(pattern, sanitized_text, re.IGNORECASE):
+                if pattern.search(sanitized_text):
                     # For specific short skills like 'Java', ensure it's not part of 'JavaScript'
                     if skill_name == "Java":
-                        if not re.search(r"\bjava\b(?!\s*script)", sanitized_text, re.IGNORECASE):
+                        if not JAVA_NOT_SCRIPT_PATTERN.search(sanitized_text):
                             continue
 
                     # For 'Excel', if standalone 'excel' is matched, verify it is in a technical context
                     if skill_name == "Excel" and alias == "excel":
-                        # If just 'excel', check it's near spreadsheet, data, ms, analysis, or inside skills section
-                        if not (re.search(r"(?:ms|microsoft|advanced|data|sheets|vba)\s+excel|excel\s+(?:sheets|formulas|vba|pivot|charts)", sanitized_text, re.IGNORECASE) or
-                                (skills_section_text and re.search(pattern, skills_section_text, re.IGNORECASE))):
+                        if not (EXCEL_CONTEXT_PATTERN.search(sanitized_text) or
+                                (skills_section_text and pattern.search(skills_section_text))):
                             continue
 
                     if skill_name not in found_skills:
@@ -172,18 +239,8 @@ class ResumeParser:
         education_list: List[EducationItem] = []
         lines = text.split("\n")
 
-        degree_patterns = [
-            r"\b(b\.?tech|b\.?e\.?|bachelor\s+of\s+[a-zA-Z\s]+|b\.?s\.?|b\.?sc|bca)\b",
-            r"\b(m\.?tech|m\.?e\.?|master\s+of\s+[a-zA-Z\s]+|m\.?s\.?|m\.?sc|mca|mba)\b",
-            r"\b(ph\.?d|doctor\s+of\s+philosophy|associate\s+degree)\b",
-        ]
-
-        combined_degree_regex = re.compile("|".join(degree_patterns), re.IGNORECASE)
-        gpa_regex = re.compile(r"(?:gpa|cgpa|score)[:\s]*([0-9]+(?:\.[0-9]+)?(?:\s*/\s*[0-9]+)?)", re.IGNORECASE)
-        year_range_regex = re.compile(r"\b(20[0-2][0-9]|19[8-9][0-9])\s*(?:-|–|to)\s*(20[0-3][0-9]|present|current)?\b", re.IGNORECASE)
-
         for i, line in enumerate(lines):
-            match = combined_degree_regex.search(line)
+            match = DEGREE_PATTERN.search(line)
             if match:
                 deg = match.group(0).strip()
                 institution = None
@@ -195,25 +252,25 @@ class ResumeParser:
                 context = " ".join(lines[max(0, i - 1): min(len(lines), i + 3)])
 
                 # GPA
-                gpa_match = gpa_regex.search(context)
+                gpa_match = GPA_PATTERN.search(context)
                 if gpa_match:
                     gpa = gpa_match.group(1).strip()
 
                 # Dates
-                yr_match = year_range_regex.search(context)
+                yr_match = YEAR_RANGE_PATTERN.search(context)
                 if yr_match:
                     start_yr = yr_match.group(1)
                     end_yr = yr_match.group(2) or "Present"
 
                 # Extract Field of study
-                field_match = re.search(r"(?:in|of)\s+([A-Za-z\s&]+?)(?:,|\.|\||-|\(|$|\d)", line, re.IGNORECASE)
+                field_match = FIELD_STUDY_PATTERN.search(line)
                 if field_match:
                     f_cand = field_match.group(1).strip()
                     if len(f_cand) < 50 and f_cand.lower() not in ("science", "arts", "technology"):
                         field = f_cand
 
                 # Find institution keyword
-                inst_match = re.search(r"([A-Za-z\s]+(?:University|Institute|College|Academy|School)[A-Za-z\s]*)", context, re.IGNORECASE)
+                inst_match = INSTITUTION_PATTERN.search(context)
                 if inst_match:
                     institution = inst_match.group(1).strip()
 
@@ -246,24 +303,10 @@ class ResumeParser:
             return []
 
         experience_list: List[ExperienceItem] = []
-        
-        title_pattern = re.compile(
-            r"\b((?:Senior|Junior|Lead|Principal|Associate|Staff)?\s*"
-            r"(?:Software Engineer|Software Developer|Data Analyst|Data Scientist|Data Engineer|"
-            r"Full Stack Developer|Frontend Developer|Backend Developer|DevOps Engineer|"
-            r"Product Manager|Project Manager|QA Engineer|Machine Learning Engineer|Intern))\b",
-            re.IGNORECASE
-        )
-
-        date_pattern = re.compile(
-            r"\b((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}|\d{4})\s*(?:-|–|to)\s*"
-            r"((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}|\d{4}|Present|Current)\b",
-            re.IGNORECASE
-        )
-
         lines = text.split("\n")
+
         for i, line in enumerate(lines):
-            t_match = title_pattern.search(line)
+            t_match = TITLE_PATTERN.search(line)
             if t_match:
                 title = t_match.group(0).strip()
                 company = None
@@ -271,15 +314,15 @@ class ResumeParser:
                 end_dt = None
 
                 context = " ".join(lines[max(0, i): min(len(lines), i + 3)])
-                
+
                 # Check for dates in context
-                d_match = date_pattern.search(context)
+                d_match = DATE_PATTERN.search(context)
                 if d_match:
                     start_dt = d_match.group(1).strip()
                     end_dt = d_match.group(2).strip()
 
                 # Extract company if present
-                comp_match = re.search(r"(?:at|@|,)\s*([A-Za-z0-9\s&]+(?:Inc|LLC|Corp|Technologies|Solutions|Ltd|Labs|Systems)?)\b", line, re.IGNORECASE)
+                comp_match = COMPANY_PATTERN.search(line)
                 if comp_match:
                     comp = comp_match.group(1).strip()
                     if comp.lower() != title.lower() and len(comp) < 40:
@@ -290,7 +333,7 @@ class ResumeParser:
                 for next_line in lines[i + 1: min(len(lines), i + 6)]:
                     if next_line.strip().startswith(("•", "-", "*", "–")) or len(next_line.strip()) > 30:
                         desc_lines.append(next_line.strip().lstrip("•-*– "))
-                
+
                 desc = " ".join(desc_lines) if desc_lines else "Delivered engineering milestones and product features."
 
                 # Associated skills
@@ -329,12 +372,12 @@ class ResumeParser:
 
         project_header_found = False
         for i, line in enumerate(lines):
-            if re.search(r"^(?:projects|key projects|personal projects|academic projects)\b", line.strip(), re.IGNORECASE):
+            if PROJECT_HEADER_PATTERN.search(line.strip()):
                 project_header_found = True
                 continue
 
             if project_header_found and line.strip():
-                if re.search(r"^(?:experience|education|skills|certifications|awards)\b", line.strip(), re.IGNORECASE):
+                if SECTION_STOP_PATTERN.search(line.strip()):
                     break
 
                 if len(line.strip()) < 80 and not line.strip().startswith(("•", "-", "*")):
@@ -348,8 +391,8 @@ class ResumeParser:
                             context += " " + next_line
 
                     technologies = [s.name for s in cls.extract_skills(context)]
-                    url_match = re.search(r"(https?://(?:github\.com/[^\s]+|[^\s]+\.[^\s]+))", context)
-                    proj_url = url_match.group(1) if url_match else None
+                    url_match = URL_PATTERN.search(context)
+                    proj_url = url_match.group(0) if url_match else None
 
                     projects.append(ProjectItem(
                         name=proj_name,
@@ -369,20 +412,9 @@ class ResumeParser:
             return []
 
         certs: List[CertificationItem] = []
-        
-        cert_rules = [
-            (r"(AWS Certified [A-Za-z\s]+)", "Amazon Web Services"),
-            (r"(Microsoft Certified: [A-Za-z\s]+|Azure Fundamentals|Azure Administrator|Azure Developer)", "Microsoft"),
-            (r"(Google Cloud Certified [A-Za-z\s]+|Associate Cloud Engineer)", "Google Cloud"),
-            (r"(Certified ScrumMaster|CSM|Professional Scrum Master|PSM)", "Scrum Alliance / Scrum.org"),
-            (r"(CompTIA [A-Za-z\+\s]+)", "CompTIA"),
-            (r"(Cisco Certified [A-Za-z\s]+|CCNA|CCNP)", "Cisco"),
-            (r"(TensorFlow Developer Certificate)", "Google"),
-            (r"(Meta Frontend Developer|Meta Backend Developer|Meta Database Engineer)", "Meta"),
-        ]
 
-        for pattern, issuer in cert_rules:
-            matches = re.finditer(pattern, text, re.IGNORECASE)
+        for pattern, issuer in COMPILED_CERT_RULES:
+            matches = pattern.finditer(text)
             for m in matches:
                 cert_name = m.group(0).strip()
                 certs.append(CertificationItem(

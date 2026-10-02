@@ -183,7 +183,22 @@ class RoadmapService:
         items: List[RoadmapListItem] = []
 
         if rm_col is not None:
-            cursor = rm_col.find({"user_id": user_id}).sort("created_at", -1)
+            cursor = rm_col.find(
+                {"user_id": user_id},
+                projection={
+                    "_id": 1,
+                    "resume_id": 1,
+                    "job_id": 1,
+                    "title": 1,
+                    "target_role": 1,
+                    "company_name": 1,
+                    "duration_weeks": 1,
+                    "current_ats_score": 1,
+                    "estimated_target_score": 1,
+                    "overall_progress": 1,
+                    "created_at": 1,
+                }
+            ).sort("created_at", -1)
             for doc in cursor:
                 items.append(RoadmapListItem(
                     id=str(doc.get("_id")),

@@ -170,7 +170,18 @@ class SkillGapService:
         items: List[SkillGapListItem] = []
 
         if sg_col is not None:
-            cursor = sg_col.find({"user_id": user_id}).sort("created_at", -1)
+            cursor = sg_col.find(
+                {"user_id": user_id},
+                projection={
+                    "_id": 1,
+                    "resume_id": 1,
+                    "job_id": 1,
+                    "job_title": 1,
+                    "company_name": 1,
+                    "overall_gap_summary": 1,
+                    "created_at": 1,
+                }
+            ).sort("created_at", -1)
             for doc in cursor:
                 summary = doc.get("overall_gap_summary", {})
                 items.append(SkillGapListItem(
@@ -203,6 +214,53 @@ class SkillGapService:
                     ))
 
         return SkillGapListResponse(items=items, total=len(items))
+
+    @classmethod
+    def get_user_latest_analysis_for_admin(
+        cls,
+        user_id: str
+    ) -> SkillGapAnalysisResponse:
+        """
+        Retrieves the latest Skill Gap analysis for a candidate.
+        Intended for authorized Admin Portal access.
+        """
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Candidate user ID is required."
+            )
+
+        sg_col = mongo_manager.skill_gaps
+        doc = None
+
+        if sg_col is not None:
+            doc = sg_col.find_one(
+                {"user_id": str(user_id)},
+                sort=[("created_at", -1)]
+            )
+        else:
+            matching_docs = [
+                d
+                for d in _IN_MEMORY_SKILL_GAPS.values()
+                if str(d.get("user_id")) == str(user_id)
+            ]
+
+            if matching_docs:
+                doc = max(
+                    matching_docs,
+                    key=lambda x: x.get(
+                        "created_at",
+                        datetime.min
+                    )
+                )
+
+        if not doc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No Skill Gap analysis found for candidate '{user_id}'."
+            )
+
+        return cls._doc_to_response(doc)
 
     @classmethod
     def get_analysis(cls, analysis_id: str, current_user: Dict[str, Any]) -> SkillGapAnalysisResponse:

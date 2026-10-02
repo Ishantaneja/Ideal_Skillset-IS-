@@ -21,7 +21,9 @@ import {
   Check,
 } from 'lucide-react';
 import { useNotification, useDocumentTitle } from '@/hooks';
+import { Link } from 'react-router-dom';
 import { resumeService } from '@/services';
+import { ROUTES } from '@/utils/constants';
 
 export default function ResumeAnalysis() {
   useDocumentTitle('Resume Management & Parsing');
@@ -272,6 +274,18 @@ export default function ResumeAnalysis() {
                     <Eye className="w-3.5 h-3.5 mr-1" />
                     {showRawText ? 'Hide Text' : 'View Text'}
                   </button>
+                </div>
+
+                {/* Quick Link to Tailor Resume */}
+                <div className="pt-2 border-t border-slate-200/80 dark:border-slate-700/80">
+                  <Link
+                    to={ROUTES.ATS}
+                    state={{ selectedResumeId: activeResume.id }}
+                    className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white font-bold text-xs flex items-center justify-center shadow-xs transition-opacity"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5 text-amber-300" />
+                    ✨ Tailor Resume for a Target Job (ATS)
+                  </Link>
                 </div>
               </div>
 

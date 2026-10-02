@@ -167,7 +167,19 @@ class ReadinessService:
         items: List[ReadinessTwinListItem] = []
 
         if rd_col is not None:
-            cursor = rd_col.find({"user_id": user_id}).sort("created_at", -1)
+            cursor = rd_col.find(
+                {"user_id": user_id},
+                projection={
+                    "_id": 1,
+                    "resume_id": 1,
+                    "job_id": 1,
+                    "job_title": 1,
+                    "company_name": 1,
+                    "overall_readiness_score": 1,
+                    "verdict": 1,
+                    "created_at": 1,
+                }
+            ).sort("created_at", -1)
             for doc in cursor:
                 verdict = doc.get("verdict", {})
                 items.append(ReadinessTwinListItem(
@@ -198,6 +210,49 @@ class ReadinessService:
                     ))
 
         return ReadinessTwinListResponse(items=items, total=len(items))
+
+    @classmethod
+    def get_user_latest_analysis_for_admin(
+        cls, user_id: str
+    ) -> ReadinessTwinResponse:
+        """
+        Retrieves the latest Readiness Twin analysis for a candidate.
+        Intended for authorized Admin Portal access.
+        """
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Candidate user ID is required."
+            )
+
+        rd_col = mongo_manager.readiness
+        doc = None
+
+        if rd_col is not None:
+            doc = rd_col.find_one(
+                {"user_id": str(user_id)},
+                sort=[("created_at", -1)]
+            )
+        else:
+            matching_docs = [
+                d
+                for d in _IN_MEMORY_READINESS.values()
+                if str(d.get("user_id")) == str(user_id)
+            ]
+
+            if matching_docs:
+                doc = max(
+                    matching_docs,
+                    key=lambda x: x.get("created_at", datetime.min)
+                )
+
+        if not doc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No Readiness Twin analysis found for candidate '{user_id}'."
+            )
+
+        return cls._doc_to_response(doc)
 
     @classmethod
     def get_analysis(cls, analysis_id: str, current_user: Dict[str, Any]) -> ReadinessTwinResponse:

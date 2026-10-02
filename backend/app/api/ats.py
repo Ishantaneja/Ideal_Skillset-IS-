@@ -1,10 +1,17 @@
-from fastapi import APIRouter, Depends, status
+import re
+import asyncio
+from fastapi import APIRouter, Depends, status, Response
 from typing import Dict, Any
 from app.models.ats import (
     ATSAnalyzeRequest,
     ATSSimulateRequest,
     ATSResultResponse,
     ATSResultListResponse,
+    ResumeTailorRequest,
+    ResumeTailorResponse,
+    SaveTailoredResumeRequest,
+    SaveTailoredResumeResponse,
+    ResumePDFRequest,
 )
 from app.services.ats_service import ats_service
 from app.core.dependencies import get_current_user
@@ -39,7 +46,8 @@ async def analyze_match(
     Computes a 100% deterministic, evidence-backed ATS compatibility score with
     detailed dimensional breakdowns, matched evidence excerpts, and actionable recommendations.
     """
-    return ats_service.analyze_match(
+    return await asyncio.to_thread(
+        ats_service.analyze_match,
         resume_id=payload.resume_id,
         job_id=payload.job_id,
         current_user=current_user
@@ -58,7 +66,8 @@ async def simulate_score(
     """
     Recalculates ATS score projections when hypothetical verified skills are added.
     """
-    return ats_service.simulate_score(
+    return await asyncio.to_thread(
+        ats_service.simulate_score,
         resume_id=payload.resume_id,
         job_id=payload.job_id,
         added_skills=payload.added_skills,
@@ -112,4 +121,63 @@ async def delete_ats_result(
     Enforces user ownership.
     """
     return ats_service.delete_result(result_id, current_user)
+
+
+@router.post(
+    "/tailor",
+    response_model=ResumeTailorResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Tailor Resume to Job Description & Boost ATS Score"
+)
+async def tailor_resume(
+    payload: ResumeTailorRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Synthesizes an ATS-tailored resume specifically aligned with a target Job Description.
+    Calculates deterministic before/after ATS scores, injected keywords, and rewritten bullet points.
+    """
+    return await asyncio.to_thread(ats_service.tailor_resume, payload, current_user)
+
+
+@router.post(
+    "/tailor/save",
+    response_model=SaveTailoredResumeResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Save & Activate Tailored Resume"
+)
+async def save_tailored_resume(
+    payload: SaveTailoredResumeRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Saves the tailored resume as an official resume in candidate's account,
+    optionally activates it as primary resume, and re-evaluates ATS compatibility.
+    """
+    return await asyncio.to_thread(ats_service.save_tailored_resume, payload, current_user)
+
+
+@router.post(
+    "/tailor/pdf",
+    status_code=status.HTTP_200_OK,
+    summary="Download Tailored Resume as PDF"
+)
+async def download_tailored_resume_pdf(
+    payload: ResumePDFRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Renders the tailored resume text into an ATS-compliant single-column PDF
+    with preserved clickable hyperlinks and returns the binary PDF file.
+    """
+    pdf_bytes = await asyncio.to_thread(ats_service.generate_tailored_pdf, payload, current_user)
+    raw_title = payload.title or "tailored_resume"
+    clean_filename = f"{re.sub(r'[^a-zA-Z0-9_]+', '_', raw_title.lower()).strip('_')}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{clean_filename}"'
+        }
+    )
 

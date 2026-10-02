@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.database.connection import mongo_manager
@@ -36,6 +37,9 @@ origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+# Enable automatic gzip compression for responses >= 1KB (shrinks JSON payloads by up to 70-80%)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
     CORSMiddleware,

@@ -22,8 +22,15 @@ import {
   ArrowRight,
   Building2,
   Layers,
+  Wand2,
+  Copy,
+  Download,
+  Check,
+  Edit3,
+  X,
+  FileCheck,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useNotification, useDocumentTitle } from '@/hooks';
 import { resumeService, jobService, atsService } from '@/services';
 import { ROUTES } from '@/utils/constants';
@@ -31,6 +38,7 @@ import { ROUTES } from '@/utils/constants';
 export default function ATSAnalyzer() {
   useDocumentTitle('Explainable ATS Matcher');
   const notify = useNotification();
+  const location = useLocation();
 
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -46,6 +54,19 @@ export default function ATSAnalyzer() {
   const [simulatedSkills, setSimulatedSkills] = useState([]);
   const [simulatedResult, setSimulatedResult] = useState(null);
   const [simulating, setSimulating] = useState(false);
+
+  // Resume Tailoring Studio State
+  const [tailoring, setTailoring] = useState(false);
+  const [tailoredResult, setTailoredResult] = useState(null);
+  const [tailoredText, setTailoredText] = useState('');
+  const [showTailorModal, setShowTailorModal] = useState(false);
+  const [savingTailored, setSavingTailored] = useState(false);
+  const [tailorTab, setTailorTab] = useState('overview'); // 'overview' | 'bullets' | 'editor' | 'diff'
+  const [saveTitle, setSaveTitle] = useState('');
+  const [setActiveOnSave, setSetActiveOnSave] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [originalResumeText, setOriginalResumeText] = useState('');
 
   // Load user resumes, jobs, and previous ATS reports
   const loadInitialData = async () => {
@@ -65,10 +86,22 @@ export default function ATSAnalyzer() {
       setJobs(jobItems);
       setHistory(historyItems);
 
-      // Auto-select active resume & first job if available
-      const activeRes = resumeItems.find((r) => r.is_active) || resumeItems[0];
-      if (activeRes) setSelectedResumeId(activeRes.id);
-      if (jobItems.length > 0) setSelectedJobId(jobItems[0].id);
+      // Check router state or auto-select active resume & first job
+      const stateResumeId = location.state?.selectedResumeId;
+      const stateJobId = location.state?.selectedJobId;
+
+      if (stateResumeId && resumeItems.some((r) => r.id === stateResumeId)) {
+        setSelectedResumeId(stateResumeId);
+      } else {
+        const activeRes = resumeItems.find((r) => r.is_active) || resumeItems[0];
+        if (activeRes) setSelectedResumeId(activeRes.id);
+      }
+
+      if (stateJobId && jobItems.some((j) => j.id === stateJobId)) {
+        setSelectedJobId(stateJobId);
+      } else if (jobItems.length > 0) {
+        setSelectedJobId(jobItems[0].id);
+      }
 
       // Load latest ATS report if available
       if (historyItems.length > 0) {
@@ -78,6 +111,120 @@ export default function ATSAnalyzer() {
       notify.error(err.message || 'Could not load data for ATS matcher');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStartTailoring = async () => {
+    const rId = selectedResumeId || activeReport?.resume_id;
+    const jId = selectedJobId || activeReport?.job_id;
+
+    if (!rId || !jId) {
+      notify.error('Please select both a resume and a job description to tailor your resume.');
+      return;
+    }
+
+    try {
+      setTailoring(true);
+      // Fetch original resume text for side-by-side comparison
+      const [tailorRes, origDoc] = await Promise.all([
+        atsService.tailorResume(rId, jId),
+        resumeService.getResume(rId).catch(() => null),
+      ]);
+
+      setTailoredResult(tailorRes);
+      setTailoredText(tailorRes.tailored_resume_text || '');
+      setOriginalResumeText(origDoc?.extracted_text || '');
+      setSaveTitle(`Tailored - ${tailorRes.job_title || 'Optimized'}`);
+      setTailorTab('overview');
+      setShowTailorModal(true);
+      notify.success(`Resume tailored! Projected ATS score improved by +${tailorRes.score_gain}%`);
+    } catch (err) {
+      notify.error(err.message || 'Failed to tailor resume for this job description');
+    } finally {
+      setTailoring(false);
+    }
+  };
+
+  const handleSaveTailored = async (setActive = true) => {
+    if (!tailoredResult || !tailoredText.trim()) return;
+
+    try {
+      setSavingTailored(true);
+      const rId = selectedResumeId || activeReport?.resume_id;
+      const jId = selectedJobId || activeReport?.job_id;
+
+      const saveRes = await atsService.saveTailoredResume({
+        original_resume_id: rId,
+        job_id: jId,
+        tailored_text: tailoredText,
+        title: saveTitle.trim() || `Tailored - ${tailoredResult.job_title}`,
+        set_active: setActive,
+      });
+
+      notify.success(
+        setActive
+          ? 'Tailored resume saved and activated as your active resume!'
+          : 'Tailored resume saved to your resume library!'
+      );
+
+      // Refresh resumes and re-run ATS analysis
+      const updatedResumes = await resumeService.getResumes().catch(() => ({ items: [] }));
+      const items = updatedResumes.items || [];
+      setResumes(items);
+
+      if (setActive && saveRes.resume_id) {
+        setSelectedResumeId(saveRes.resume_id);
+        try {
+          const newReport = await atsService.analyzeMatch(saveRes.resume_id, jId);
+          setActiveReport(newReport);
+          const updatedHistory = await atsService.getResults().catch(() => ({ items: [] }));
+          setHistory(updatedHistory.items || []);
+        } catch (_) {}
+      }
+      setShowTailorModal(false);
+    } catch (err) {
+      notify.error(err.message || 'Could not save tailored resume');
+    } finally {
+      setSavingTailored(false);
+    }
+  };
+
+  const handleCopyText = async () => {
+    if (!tailoredText) return;
+    try {
+      await navigator.clipboard.writeText(tailoredText);
+      setCopied(true);
+      notify.success('Tailored resume copied to clipboard!');
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      notify.error('Could not copy to clipboard');
+    }
+  };
+
+  const handleDownloadText = () => {
+    if (!tailoredText) return;
+    const blob = new Blob([tailoredText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${saveTitle || 'tailored_resume'}.txt`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    notify.info('Tailored resume downloaded as plain text.');
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!tailoredText) return;
+    try {
+      setDownloadingPdf(true);
+      await atsService.downloadTailoredPdf(tailoredText, saveTitle || 'tailored_resume');
+      notify.success('ATS-compliant PDF resume downloaded successfully!');
+    } catch (err) {
+      notify.error(err.message || 'Could not generate PDF resume');
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -256,13 +403,13 @@ export default function ATSAnalyzer() {
             )}
           </div>
 
-          {/* Match CTA Button */}
-          <div className="md:col-span-2">
+          {/* Match CTA & Tailor Action Buttons */}
+          <div className="md:col-span-2 flex flex-col gap-2">
             <Button
               type="submit"
               variant="primary"
               size="md"
-              className="w-full justify-center text-xs font-bold py-2 rounded-xl"
+              className="w-full justify-center text-xs font-bold py-2 rounded-xl shadow-xs"
               disabled={analyzing || !selectedResumeId || !selectedJobId}
             >
               {analyzing ? (
@@ -273,6 +420,24 @@ export default function ATSAnalyzer() {
                 </>
               )}
             </Button>
+            <button
+              type="button"
+              disabled={tailoring || !selectedResumeId || !selectedJobId}
+              onClick={handleStartTailoring}
+              className="w-full py-1.5 px-2 rounded-xl text-xs font-bold border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
+            >
+              {tailoring ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin text-purple-600 dark:text-purple-400" />
+                  Tailoring...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 mr-1 text-purple-600 dark:text-purple-400" />
+                  ✨ Tailor Resume
+                </>
+              )}
+            </button>
           </div>
         </form>
       </Card>
@@ -473,6 +638,38 @@ export default function ATSAnalyzer() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* AI Resume Tailoring Action Callout */}
+              <div className="mt-6 p-4 rounded-2xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-700 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-md">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2 font-bold text-sm">
+                    <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+                    <span>AI Resume Tailoring Studio</span>
+                    <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full uppercase tracking-wider font-extrabold">
+                      Instant ATS Boost
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/85 max-w-xl leading-relaxed">
+                    Auto-adapt your resume to match this position: inject missing domain keywords, rewrite bullet points with quantified STAR impact, and boost your compatibility rating.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={tailoring}
+                  onClick={handleStartTailoring}
+                  className="bg-white hover:bg-slate-100 text-brand-700 font-bold px-4 py-2.5 rounded-xl shadow-xs text-xs flex items-center justify-center shrink-0 whitespace-nowrap transition-transform active:scale-95 disabled:opacity-60 cursor-pointer"
+                >
+                  {tailoring ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin text-brand-600" /> Optimizing Resume...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-3.5 h-3.5 mr-1.5 text-purple-600" /> ✨ Tailor Resume for this Job
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -780,6 +977,28 @@ export default function ATSAnalyzer() {
             {/* TAB 5: HONEST RECOMMENDATIONS */}
             {activeTab === 'improvements' && (
               <div className="space-y-6">
+                {/* Quick Auto-Tailor Action Card */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-900/40 via-brand-900/30 to-slate-900 border border-purple-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+                  <div className="space-y-1">
+                    <span className="font-bold text-white flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-amber-300" />
+                      Auto-Apply Resume Improvements
+                    </span>
+                    <p className="text-slate-300 text-[11px]">
+                      Don't want to rewrite manually? The AI Resume Tailoring Studio rewrites your experience bullets with STAR metrics and incorporates missing required keywords instantly.
+                    </p>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={tailoring}
+                    onClick={handleStartTailoring}
+                    className="shrink-0 rounded-xl px-4 py-2 font-bold text-xs shadow-sm bg-gradient-to-r from-brand-600 to-purple-600 hover:opacity-95"
+                  >
+                    <Wand2 className="w-3.5 h-3.5 mr-1.5" /> Tailor Resume Now
+                  </Button>
+                </div>
+
                 <Card
                   title="High Priority Skills to Develop"
                   subtitle="Prioritized list of missing mandatory requirements ranked by score impact"
@@ -941,6 +1160,485 @@ export default function ATSAnalyzer() {
             </p>
           </div>
         </Card>
+      )}
+
+      {/* AI Resume Tailoring Studio Modal */}
+      {showTailorModal && tailoredResult && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-5xl my-auto max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-800/40">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-md">
+                  <Wand2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      AI Resume Tailoring Studio
+                    </h3>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                      +{tailoredResult.score_gain}% ATS Boost
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Optimized for: <strong className="text-slate-700 dark:text-slate-300">{tailoredResult.job_title}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowTailorModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title="Close Studio"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Before vs After Score Banner */}
+            <div className="px-6 py-4 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
+              <div className="flex items-center space-x-6 sm:space-x-8">
+                {/* Original Baseline Score */}
+                <div className="text-center">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Baseline Score</span>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-slate-300">
+                    {Math.round(tailoredResult.original_score)}%
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-medium">{tailoredResult.original_label}</span>
+                </div>
+
+                {/* Transformation Arrow */}
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center space-x-1 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-xs font-bold shadow-xs">
+                    <TrendingUp className="w-4 h-4" />
+                    <span>+{tailoredResult.score_gain}%</span>
+                  </div>
+                  <span className="text-[9px] uppercase tracking-wider text-emerald-300/80 mt-1 font-semibold">AI Optimized</span>
+                </div>
+
+                {/* Optimized Score */}
+                <div className="text-center">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">Optimized Score</span>
+                  <div className="text-3xl sm:text-4xl font-extrabold text-emerald-400">
+                    {Math.round(tailoredResult.optimized_score)}%
+                  </div>
+                  <span className="text-[10px] text-emerald-300 font-bold">{tailoredResult.optimized_label}</span>
+                </div>
+              </div>
+
+              {/* Quick Pills */}
+              <div className="flex flex-wrap gap-2 text-xs">
+                <div className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span><strong>{tailoredResult.skills_added?.length || 0}</strong> Skills Added</span>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span><strong>{tailoredResult.rewritten_bullet_points?.length || 0}</strong> STAR Bullets</span>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 flex items-center gap-1.5">
+                  <Key className="w-3.5 h-3.5 text-brand-300" />
+                  <span><strong>{tailoredResult.keywords_injected?.length || 0}</strong> Keywords Injected</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Studio Navigation Tabs */}
+            <div className="px-6 border-b border-slate-200 dark:border-slate-800 flex items-center space-x-2 pt-2 bg-white dark:bg-slate-900 overflow-x-auto">
+              <button
+                onClick={() => setTailorTab('overview')}
+                className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
+                  tailorTab === 'overview'
+                    ? 'border-brand-600 text-brand-600 dark:text-brand-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Optimization Overview
+              </button>
+              <button
+                onClick={() => setTailorTab('bullets')}
+                className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
+                  tailorTab === 'bullets'
+                    ? 'border-brand-600 text-brand-600 dark:text-brand-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <ListChecks className="w-3.5 h-3.5" /> STAR Bullet Rewrites ({tailoredResult.rewritten_bullet_points?.length || 0})
+              </button>
+              <button
+                onClick={() => setTailorTab('editor')}
+                className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
+                  tailorTab === 'editor'
+                    ? 'border-brand-600 text-brand-600 dark:text-brand-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Edit3 className="w-3.5 h-3.5" /> Full Resume Text Editor
+              </button>
+              <button
+                onClick={() => setTailorTab('diff')}
+                className={`px-3.5 py-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
+                  tailorTab === 'diff'
+                    ? 'border-brand-600 text-brand-600 dark:text-brand-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" /> Side-by-Side Comparison
+              </button>
+            </div>
+
+            {/* Modal Body Content (Scrollable) */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-slate-50/50 dark:bg-slate-950/40">
+              {/* TAB 1: OVERVIEW */}
+              {tailorTab === 'overview' && (
+                <div className="space-y-6">
+                  {/* Dimension Improvement Breakdown Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Required Skills</span>
+                      <div className="flex items-baseline space-x-2 mt-1">
+                        <span className="text-xs text-slate-400 line-through">
+                          {Math.round(tailoredResult.original_breakdown.required_skills)}%
+                        </span>
+                        <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+                          {Math.round(tailoredResult.optimized_breakdown.required_skills)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Keywords Injected</span>
+                      <div className="flex items-baseline space-x-2 mt-1">
+                        <span className="text-xs text-slate-400 line-through">
+                          {Math.round(tailoredResult.original_breakdown.keywords)}%
+                        </span>
+                        <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+                          {Math.round(tailoredResult.optimized_breakdown.keywords)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Preferred Skills</span>
+                      <div className="flex items-baseline space-x-2 mt-1">
+                        <span className="text-xs text-slate-400 line-through">
+                          {Math.round(tailoredResult.original_breakdown.preferred_skills)}%
+                        </span>
+                        <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+                          {Math.round(tailoredResult.optimized_breakdown.preferred_skills)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Responsibilities</span>
+                      <div className="flex items-baseline space-x-2 mt-1">
+                        <span className="text-xs text-slate-400 line-through">
+                          {Math.round(tailoredResult.original_breakdown.responsibilities)}%
+                        </span>
+                        <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+                          {Math.round(tailoredResult.optimized_breakdown.responsibilities)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AI Optimization Explanations */}
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center">
+                      <ShieldCheck className="w-4 h-4 mr-1.5 text-brand-600" />
+                      Key ATS Optimizations Applied
+                    </h4>
+                    <div className="space-y-2">
+                      {tailoredResult.tailoring_explanations?.map((exp, idx) => (
+                        <div key={idx} className="flex items-start space-x-2.5 text-xs text-slate-700 dark:text-slate-300">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                          <span>{exp}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Incorporated Skills & Keywords */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Skills Added */}
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center justify-between">
+                        <span className="flex items-center">
+                          <CheckCircle2 className="w-4 h-4 mr-1.5 text-emerald-600" />
+                          Target Skills Incorporated
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
+                          {tailoredResult.skills_added?.length || 0} skills
+                        </span>
+                      </h4>
+                      <div className="flex flex-wrap gap-1.5">
+                        {tailoredResult.skills_added?.map((s, idx) => (
+                          <span
+                            key={idx}
+                            className="text-xs px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-medium"
+                          >
+                            + {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Keywords Injected */}
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center justify-between">
+                        <span className="flex items-center">
+                          <Key className="w-4 h-4 mr-1.5 text-brand-600" />
+                          ATS Domain Keywords Injected
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-100 text-brand-800 font-semibold">
+                          {tailoredResult.keywords_injected?.length || 0} keywords
+                        </span>
+                      </h4>
+                      <div className="flex flex-wrap gap-1.5">
+                        {tailoredResult.keywords_injected?.map((k, idx) => (
+                          <span
+                            key={idx}
+                            className="text-xs px-2.5 py-1 rounded-lg bg-brand-50 dark:bg-brand-950/60 text-brand-800 dark:text-brand-300 border border-brand-200 dark:border-brand-800 font-medium"
+                          >
+                            {k}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: REWRITTEN BULLETS */}
+              {tailorTab === 'bullets' && (
+                <div className="space-y-4">
+                  <div className="text-xs text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <p className="font-semibold text-slate-900 dark:text-white flex items-center">
+                      <Sparkles className="w-4 h-4 mr-1.5 text-purple-600" /> STAR (Situation, Task, Action, Result) Rewrite Engine
+                    </p>
+                    <p className="mt-1 text-[11px]">
+                      Each bullet point has been upgraded using strong action verbs, quantifiable business metrics, and target JD keywords while preserving complete factual integrity.
+                    </p>
+                  </div>
+
+                  {tailoredResult.rewritten_bullet_points?.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          {item.company} • {item.role}
+                        </span>
+                        <span className="text-[10px] bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded font-bold border border-purple-200 dark:border-purple-800">
+                          STAR Upgraded
+                        </span>
+                      </div>
+
+                      {/* Original Bullet */}
+                      <div className="p-3 bg-red-50/50 dark:bg-red-950/30 rounded-xl border border-red-200/80 dark:border-red-900/60 text-xs">
+                        <span className="text-[10px] uppercase font-bold text-red-600 dark:text-red-400 flex items-center mb-1">
+                          <AlertTriangle className="w-3.5 h-3.5 mr-1" /> Original Bullet Point
+                        </span>
+                        <p className="text-slate-700 dark:text-slate-300 font-mono text-[11px] leading-relaxed">
+                          {item.original}
+                        </p>
+                      </div>
+
+                      {/* Optimized Bullet */}
+                      <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 text-xs">
+                        <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 flex items-center mb-1">
+                          <Sparkles className="w-3.5 h-3.5 mr-1 text-emerald-600" /> ATS-Optimized Bullet Point
+                        </span>
+                        <p className="text-emerald-950 dark:text-emerald-200 font-medium leading-relaxed text-xs">
+                          {item.optimized}
+                        </p>
+                      </div>
+
+                      {/* Badges */}
+                      <div className="flex flex-wrap items-center gap-2 pt-1 text-[10px]">
+                        {item.action_verb_used && (
+                          <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">
+                            Verb: {item.action_verb_used}
+                          </span>
+                        )}
+                        {item.metric_added && (
+                          <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 font-semibold border border-amber-200 dark:border-amber-900">
+                            Metric: {item.metric_added}
+                          </span>
+                        )}
+                        {item.keywords_included?.map((kw, kidx) => (
+                          <span
+                            key={kidx}
+                            className="px-2 py-0.5 rounded bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-semibold"
+                          >
+                            JD Key: {kw}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* TAB 3: RESUME EDITOR */}
+              {tailorTab === 'editor' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                    <span className="flex items-center">
+                      <Edit3 className="w-3.5 h-3.5 mr-1" />
+                      ATS-Standard Typography & Layout (Clean, Single-Column Format)
+                    </span>
+                    <div className="flex items-center space-x-3">
+                      <span>{tailoredText.length} characters • {tailoredText.split('\n').length} lines</span>
+                      <button
+                        onClick={() => setTailoredText(tailoredResult.tailored_resume_text || '')}
+                        className="text-brand-600 dark:text-brand-400 hover:underline text-[11px] font-semibold"
+                      >
+                        Reset to AI Version
+                      </button>
+                    </div>
+                  </div>
+
+                  <textarea
+                    rows={18}
+                    value={tailoredText}
+                    onChange={(e) => setTailoredText(e.target.value)}
+                    className="w-full p-4 font-mono text-xs leading-relaxed border border-slate-300 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-inner"
+                    placeholder="Tailored resume text..."
+                  />
+                </div>
+              )}
+
+              {/* TAB 4: SIDE-BY-SIDE DIFF */}
+              {tailorTab === 'diff' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Left: Original */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300 px-1">
+                      <span>Original Resume Extracted Text</span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        Score: {Math.round(tailoredResult.original_score)}%
+                      </span>
+                    </div>
+                    <pre className="p-4 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 text-[11px] font-mono whitespace-pre-wrap max-h-[500px] overflow-y-auto leading-relaxed text-slate-700 dark:text-slate-300">
+                      {originalResumeText || 'Original resume text not available.'}
+                    </pre>
+                  </div>
+
+                  {/* Right: Tailored */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-400 px-1">
+                      <span className="flex items-center">
+                        <Sparkles className="w-3.5 h-3.5 mr-1" /> Tailored & Optimized Resume
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                        Score: {Math.round(tailoredResult.optimized_score)}%
+                      </span>
+                    </div>
+                    <pre className="p-4 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-2xl border border-emerald-200 dark:border-emerald-800 text-[11px] font-mono whitespace-pre-wrap max-h-[500px] overflow-y-auto leading-relaxed text-slate-900 dark:text-slate-100">
+                      {tailoredText}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer Controls */}
+            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              {/* Save Resume Title & Active Checkbox */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <input
+                  type="text"
+                  value={saveTitle}
+                  onChange={(e) => setSaveTitle(e.target.value)}
+                  placeholder="Resume Title"
+                  className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-500 w-64 font-medium"
+                />
+                <label className="flex items-center space-x-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={setActiveOnSave}
+                    onChange={(e) => setSetActiveOnSave(e.target.checked)}
+                    className="rounded text-brand-600 focus:ring-brand-500 w-4 h-4"
+                  />
+                  <span>Set as Active Resume Document</span>
+                </label>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={handleCopyText}
+                  className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center transition-colors"
+                  title="Copy Text to Clipboard"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 mr-1.5 text-emerald-600" /> Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy Text
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={downloadingPdf}
+                  onClick={handleDownloadPdf}
+                  className="px-3.5 py-2 text-xs font-bold rounded-xl border border-red-200 dark:border-red-800/80 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/60 flex items-center transition-colors disabled:opacity-50 shadow-2xs cursor-pointer"
+                  title="Download ATS-Compliant PDF Resume"
+                >
+                  {downloadingPdf ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin text-red-600" />
+                      Generating PDF...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3.5 h-3.5 mr-1.5 text-red-600 dark:text-red-400" />
+                      Download PDF
+                      <span className="ml-1.5 text-[9px] font-extrabold bg-red-600 text-white px-1.5 py-0.2 rounded uppercase">
+                        PDF
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadText}
+                  className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center transition-colors"
+                  title="Download .txt File"
+                >
+                  <Download className="w-3.5 h-3.5 mr-1.5" /> Download .txt
+                </button>
+
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={savingTailored}
+                  onClick={() => handleSaveTailored(setActiveOnSave)}
+                  className="rounded-xl px-4 py-2 font-bold text-xs shadow-md bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 hover:opacity-95"
+                >
+                  {savingTailored ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Saving...
+                    </>
+                  ) : (
+                    <>
+                      <FileCheck className="w-4 h-4 mr-1.5" /> Save & Apply Tailored Resume
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

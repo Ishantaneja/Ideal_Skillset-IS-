@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File, status
+from fastapi import APIRouter, Depends, UploadFile, File, status, HTTPException
 from typing import Dict, Any
 from app.models.job import (
     JobAnalyzeRequest,
@@ -7,6 +7,7 @@ from app.models.job import (
 )
 from app.services.job_service import job_service
 from app.core.dependencies import get_current_user
+from app.database.connection import mongo_manager
 
 router = APIRouter(prefix="/jobs", tags=["Job Description Analysis"])
 
@@ -20,6 +21,53 @@ async def test_jobs():
         "status": "ok",
         "module": "jobs",
         "message": "Jobs analysis router is operational"
+    }
+
+
+@router.get(
+    "/roles",
+    status_code=status.HTTP_200_OK,
+    summary="Get Active Job Roles"
+)
+async def get_active_job_roles():
+    """
+    Returns all active job roles created by the administrator.
+
+    This endpoint is public because candidates need to see
+    available job roles during signup before authentication.
+    """
+    job_roles_col = mongo_manager.job_roles
+
+    if job_roles_col is None:
+        raise HTTPException(
+            status_code=503,
+            detail="MongoDB is currently unavailable."
+        )
+
+    roles = []
+
+    cursor = job_roles_col.find(
+        {
+            "status": {
+                "$regex": "^active$",
+                "$options": "i"
+            }
+        },
+        {
+            "_id": 1,
+            "name": 1
+        }
+    ).sort("name", 1)
+
+    for role in cursor:
+        roles.append({
+            "id": str(role.get("_id")),
+            "name": role.get("name", "")
+        })
+
+    return {
+        "items": roles,
+        "total": len(roles)
     }
 
 

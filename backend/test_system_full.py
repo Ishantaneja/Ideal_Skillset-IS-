@@ -108,6 +108,39 @@ Preferred:
     score_gain = res.json()["score_gain"]
     print(f"  [OK] What-If Simulation: Score increased to {sim_score}% (+{score_gain}%)")
 
+    # 7b. Resume Tailoring & ATS Score Optimization
+    print("\n[7b/12] Testing AI Resume Tailoring & ATS Score Optimization...")
+    tailor_res = client.post("/api/ats/tailor", json={"resume_id": resume_id, "job_id": job_id}, headers=headers)
+    assert tailor_res.status_code == 200, f"Tailoring failed: {tailor_res.text}"
+    tailor_data = tailor_res.json()
+    assert tailor_data["optimized_score"] >= tailor_data["original_score"]
+    assert len(tailor_data["tailored_resume_text"]) > 100
+    print(f"  [OK] Resume Tailored: Score improved from {tailor_data['original_score']}% to {tailor_data['optimized_score']}% (+{tailor_data['score_gain']}%)")
+    print(f"       Skills Added: {tailor_data['skills_added']}, Rewritten Bullets: {len(tailor_data['rewritten_bullet_points'])}")
+
+    # Save and activate tailored resume
+    save_tailor_res = client.post("/api/ats/tailor/save", json={
+        "original_resume_id": resume_id,
+        "job_id": job_id,
+        "tailored_text": tailor_data["tailored_resume_text"],
+        "title": "Tailored Data Analyst Resume",
+        "set_active": True
+    }, headers=headers)
+    assert save_tailor_res.status_code == 201, f"Save tailored resume failed: {save_tailor_res.text}"
+    assert save_tailor_res.json()["is_active"] is True
+    print(f"  [OK] Tailored Resume Saved & Activated: New ID = {save_tailor_res.json()['resume_id']}")
+
+    # Download Tailored Resume as PDF
+    pdf_res = client.post("/api/ats/tailor/pdf", json={
+        "tailored_text": tailor_data["tailored_resume_text"],
+        "title": "Tailored Data Analyst Resume"
+    }, headers=headers)
+    assert pdf_res.status_code == 200
+    assert pdf_res.headers["content-type"] == "application/pdf"
+    assert len(pdf_res.content) > 1000
+    assert pdf_res.content.startswith(b"%PDF")
+    print(f"  [OK] Tailored Resume PDF Export: Generated valid PDF ({len(pdf_res.content)} bytes).")
+
     # 8. Skill Gap Analysis & Priority Ranking
     print("\n[8/12] Testing Intelligent Skill Gap Analysis...")
     res = client.post("/api/skill-gaps/analyze", json={"resume_id": resume_id, "job_id": job_id}, headers=headers)

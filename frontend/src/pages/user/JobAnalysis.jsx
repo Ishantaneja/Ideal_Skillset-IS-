@@ -25,7 +25,9 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { useNotification, useDocumentTitle } from '@/hooks';
+import { Link } from 'react-router-dom';
 import { jobService } from '@/services';
+import { ROUTES } from '@/utils/constants';
 
 const SAMPLE_DATA_ANALYST_JD = `Job Title: Junior Data Analyst
 Company: Apex Analytics Corp
@@ -437,7 +439,15 @@ export default function JobAnalysis() {
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    to={ROUTES.ATS}
+                    state={{ selectedJobId: activeJob.id }}
+                    className="py-1.5 px-3 rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white font-bold text-xs flex items-center shadow-xs transition-opacity"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5 text-amber-300" />
+                    ✨ Tailor Resume for this Job
+                  </Link>
                   <Button
                     variant="outline"
                     size="sm"

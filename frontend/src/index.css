@@ -95,3 +95,217 @@ html.dark ::-webkit-scrollbar-thumb {
 html.dark ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
+
+/* =========================================================
+   PREMIUM ADMIN DARK MODE
+   ========================================================= */
+
+/* Main admin workspace */
+html.dark .admin-theme {
+  background: #080d18 !important;
+  color: #e5e7eb;
+}
+
+/* =========================================================
+   ADMIN HEADER
+   ========================================================= */
+
+html.dark .admin-theme > div > header {
+  background: rgba(15, 23, 42, 0.92) !important;
+  border-bottom: 1px solid #1e293b !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(12px);
+}
+
+/* Header text */
+html.dark .admin-theme header .text-slate-900 {
+  color: #f8fafc !important;
+}
+
+html.dark .admin-theme header .text-slate-700 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .admin-theme header .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+/* Header hover */
+html.dark .admin-theme header .hover\:bg-slate-100:hover {
+  background: #1e293b !important;
+}
+
+/* =========================================================
+   ADMIN MAIN BACKGROUND
+   ========================================================= */
+
+html.dark .admin-theme main {
+  background:
+    radial-gradient(
+      circle at 15% 10%,
+      rgba(79, 70, 229, 0.07),
+      transparent 30%
+    ),
+    #080d18 !important;
+}
+
+/* =========================================================
+   ADMIN CARDS
+   ========================================================= */
+
+html.dark .admin-theme main .bg-white {
+  background: linear-gradient(
+    145deg,
+    #111827 0%,
+    #0f172a 100%
+  ) !important;
+
+  border-color: #243047 !important;
+
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+/* Card hover */
+html.dark .admin-theme main .bg-white:hover {
+  border-color: #334155 !important;
+}
+
+/* =========================================================
+   ADMIN SECONDARY SURFACES
+   ========================================================= */
+
+html.dark .admin-theme main .bg-slate-50 {
+  background: #121c2d !important;
+}
+
+html.dark .admin-theme main .bg-slate-100 {
+  background: #080d18 !important;
+}
+
+/* =========================================================
+   ADMIN TEXT
+   ========================================================= */
+
+html.dark .admin-theme main .text-slate-900 {
+  color: #f8fafc !important;
+}
+
+html.dark .admin-theme main .text-slate-800 {
+  color: #f1f5f9 !important;
+}
+
+html.dark .admin-theme main .text-slate-700 {
+  color: #dbe4ee !important;
+}
+
+html.dark .admin-theme main .text-slate-600 {
+  color: #a8b3c5 !important;
+}
+
+html.dark .admin-theme main .text-slate-500 {
+  color: #8491a5 !important;
+}
+
+/* =========================================================
+   ADMIN BORDERS
+   ========================================================= */
+
+html.dark .admin-theme main .border-slate-100,
+html.dark .admin-theme main .border-slate-200,
+html.dark .admin-theme main .border-slate-300 {
+  border-color: #26344b !important;
+}
+
+/* =========================================================
+   ADMIN TABLE
+   ========================================================= */
+
+html.dark .admin-theme main table {
+  border-color: #26344b !important;
+}
+
+html.dark .admin-theme main thead {
+  background: #111a2a !important;
+}
+
+html.dark .admin-theme main thead th {
+  color: #8fa0b8 !important;
+}
+
+html.dark .admin-theme main tbody tr {
+  border-color: #26344b !important;
+}
+
+html.dark .admin-theme main tbody tr:hover {
+  background: rgba(30, 41, 59, 0.55) !important;
+}
+
+/* =========================================================
+   ADMIN INPUTS
+   ========================================================= */
+
+html.dark .admin-theme main input,
+html.dark .admin-theme main textarea,
+html.dark .admin-theme main select {
+  background: #111827 !important;
+  color: #f1f5f9 !important;
+  border-color: #2a3951 !important;
+}
+
+html.dark .admin-theme main input:focus,
+html.dark .admin-theme main textarea:focus,
+html.dark .admin-theme main select:focus {
+  border-color: #6366f1 !important;
+
+  box-shadow:
+    0 0 0 3px rgba(99, 102, 241, 0.12) !important;
+}
+
+html.dark .admin-theme main input::placeholder,
+html.dark .admin-theme main textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* =========================================================
+   ADMIN SLATE BUTTONS
+   ========================================================= */
+
+html.dark .admin-theme main .bg-slate-900 {
+  background: #4f46e5 !important;
+  color: white !important;
+}
+
+html.dark .admin-theme main .hover\:bg-slate-800:hover {
+  background: #4338ca !important;
+}
+
+/* =========================================================
+   ADMIN FILTER / SECONDARY BUTTONS
+   ========================================================= */
+
+html.dark .admin-theme main .hover\:bg-slate-50:hover,
+html.dark .admin-theme main .hover\:bg-slate-100:hover {
+  background: #1e293b !important;
+}
+
+/* =========================================================
+   ADMIN STATUS COLORS
+   ========================================================= */
+
+html.dark .admin-theme main .text-red-600 {
+  color: #fb7185 !important;
+}
+
+html.dark .admin-theme main .text-green-600 {
+  color: #4ade80 !important;
+}
+
+html.dark .admin-theme main .text-blue-600 {
+  color: #60a5fa !important;
+}
+
+html.dark .admin-theme main .text-brand-600 {
+  color: #818cf8 !important;
+}

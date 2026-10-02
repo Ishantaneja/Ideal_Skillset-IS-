@@ -296,21 +296,38 @@ class RecruiterService:
             _IN_MEMORY_RECRUITER_JOBS["sample_job_01"] = sample_doc
             raw_jobs = [sample_doc]
 
+        # Batch aggregate applicant counts and shortlisted counts for all company jobs in one query
+        counts_by_job: Dict[str, Tuple[int, int]] = {}
+        if apps_col is not None and raw_jobs:
+            try:
+                job_id_list = [str(j.get("_id", "")) for j in raw_jobs]
+                agg_pipeline = [
+                    {"$match": {"job_id": {"$in": job_id_list}}},
+                    {"$group": {
+                        "_id": "$job_id",
+                        "total": {"$sum": 1},
+                        "shortlisted": {
+                            "$sum": {
+                                "$cond": [
+                                    {"$in": ["$current_stage", ["shortlisted", "interview", "offer", "hired"]]},
+                                    1,
+                                    0
+                                ]
+                            }
+                        }
+                    }}
+                ]
+                for r in apps_col.aggregate(agg_pipeline):
+                    counts_by_job[str(r["_id"])] = (r.get("total", 0), r.get("shortlisted", 0))
+            except Exception as agg_err:
+                logger.warning(f"Error aggregating applicant counts: {agg_err}")
+
         results = []
         for j in raw_jobs:
             j_id = str(j.get("_id", ""))
             # Count applicants and shortlisted
-            app_count = 0
-            short_count = 0
             if apps_col is not None:
-                try:
-                    app_count = apps_col.count_documents({"job_id": j_id})
-                    short_count = apps_col.count_documents({
-                        "job_id": j_id,
-                        "current_stage": {"$in": ["shortlisted", "interview", "offer", "hired"]}
-                    })
-                except Exception:
-                    pass
+                app_count, short_count = counts_by_job.get(j_id, (0, 0))
             else:
                 comp_apps = [a for a in _IN_MEMORY_APPLICATIONS.values() if a.get("job_id") == j_id]
                 app_count = len(comp_apps)
@@ -795,6 +812,33 @@ class RecruiterService:
         if not raw_apps:
             raw_apps = cls._seed_default_applicants_for_job(job, company_id, recruiter_id)
 
+        # Batch preload candidates and evaluations to avoid 2*N sequential round-trips
+        cand_ids = [str(a.get("candidate_user_id", "")) for a in raw_apps if a.get("candidate_user_id")]
+        cand_users_map: Dict[str, Dict[str, Any]] = {}
+        evals_map: Dict[str, Dict[str, Any]] = {}
+
+        if users_col is not None and cand_ids:
+            try:
+                valid_oids = [ObjectId(cid) for cid in cand_ids if ObjectId.is_valid(cid)]
+                str_ids = [cid for cid in cand_ids]
+                q_filters = []
+                if valid_oids:
+                    q_filters.append({"_id": {"$in": valid_oids}})
+                if str_ids:
+                    q_filters.append({"_id": {"$in": str_ids}})
+                query = {"$or": q_filters} if len(q_filters) > 1 else q_filters[0]
+                for u in users_col.find(query):
+                    cand_users_map[str(u.get("_id"))] = u
+            except Exception as u_err:
+                logger.warning(f"Error batch preloading users in list_job_applicants: {u_err}")
+
+        if evals_col is not None and cand_ids:
+            try:
+                for e in evals_col.find({"job_id": job_id, "candidate_id": {"$in": cand_ids}}):
+                    evals_map[str(e.get("candidate_id"))] = e
+            except Exception as e_err:
+                logger.warning(f"Error batch preloading evaluations in list_job_applicants: {e_err}")
+
         items: List[CandidateApplicationItem] = []
         for app in raw_apps:
             app_id = str(app.get("_id", ""))
@@ -803,9 +847,9 @@ class RecruiterService:
             applied_at = app.get("applied_at", datetime.now(timezone.utc))
             resume_id = app.get("resume_id")
 
-            # Fetch candidate info
-            cand_user = None
-            if users_col is not None:
+            # Fetch candidate info from map or fallback
+            cand_user = cand_users_map.get(cand_id)
+            if not cand_user and users_col is not None:
                 if ObjectId.is_valid(cand_id):
                     cand_user = users_col.find_one({"_id": ObjectId(cand_id)})
                 if not cand_user:
@@ -826,9 +870,9 @@ class RecruiterService:
             has_gh = bool(cand_user and (cand_user.get("github_verification") or gh_url))
             has_cert = bool(cand_user and (cand_user.get("certifications") or cand_user.get("certificates") or cand_user.get("certificate_verification")))
 
-            # Fetch Evaluation
-            eval_doc = None
-            if evals_col is not None:
+            # Fetch Evaluation from map or fallback
+            eval_doc = evals_map.get(cand_id)
+            if not eval_doc and evals_col is not None:
                 eval_doc = evals_col.find_one({"candidate_id": cand_id, "job_id": job_id})
             if not eval_doc:
                 eval_doc = _IN_MEMORY_EVALUATIONS.get(f"{cand_id}_{job_id}")
@@ -1512,31 +1556,45 @@ class RecruiterService:
         if jobs_col is not None and apps_col is not None:
             try:
                 open_roles = jobs_col.count_documents({"company_id": company_id, "status": "active"})
-                total_applicants = apps_col.count_documents({"company_id": company_id})
-                ai_screened = apps_col.count_documents({"company_id": company_id, "current_stage": {"$ne": "applied"}})
-                shortlisted = apps_col.count_documents({"company_id": company_id, "current_stage": "shortlisted"})
-                interviews = apps_col.count_documents({"company_id": company_id, "current_stage": "interview"})
-                offers = apps_col.count_documents({"company_id": company_id, "current_stage": {"$in": ["offer", "hired"]}})
 
-                # Pipeline breakdown counts
+                # Single stage aggregation for all pipeline stages
+                stage_agg = apps_col.aggregate([
+                    {"$match": {"company_id": company_id}},
+                    {"$group": {"_id": "$current_stage", "count": {"$sum": 1}}}
+                ])
+                stage_counts = {str(row["_id"]): row["count"] for row in stage_agg}
+                total_applicants = sum(stage_counts.values())
+
                 for stage_key in pipeline_breakdown.keys():
-                    pipeline_breakdown[stage_key] = apps_col.count_documents({
-                        "company_id": company_id,
-                        "current_stage": stage_key
-                    })
+                    pipeline_breakdown[stage_key] = stage_counts.get(stage_key, 0)
 
-                # Active jobs
-                job_cursor = jobs_col.find({"company_id": company_id, "status": "active"}).limit(5)
-                for j in job_cursor:
-                    j_id = str(j["_id"])
-                    cnt = apps_col.count_documents({"job_id": j_id})
-                    active_jobs_list.append({
-                        "id": j_id,
-                        "title": j.get("title", ""),
-                        "applicant_count": cnt,
-                        "location": j.get("location", "Remote"),
-                        "created_at": j.get("created_at")
-                    })
+                ai_screened = sum(cnt for stage, cnt in stage_counts.items() if stage != "applied")
+                shortlisted = stage_counts.get("shortlisted", 0)
+                interviews = stage_counts.get("interview", 0)
+                offers = stage_counts.get("offer", 0) + stage_counts.get("hired", 0)
+
+                # Active jobs with projected fields and single batch count aggregation
+                recent_jobs = list(jobs_col.find(
+                    {"company_id": company_id, "status": "active"},
+                    {"title": 1, "location": 1, "created_at": 1}
+                ).limit(5))
+
+                if recent_jobs:
+                    job_ids = [str(j["_id"]) for j in recent_jobs]
+                    job_cnt_agg = apps_col.aggregate([
+                        {"$match": {"job_id": {"$in": job_ids}}},
+                        {"$group": {"_id": "$job_id", "count": {"$sum": 1}}}
+                    ])
+                    job_counts_map = {str(r["_id"]): r["count"] for r in job_cnt_agg}
+                    for j in recent_jobs:
+                        j_id = str(j["_id"])
+                        active_jobs_list.append({
+                            "id": j_id,
+                            "title": j.get("title", ""),
+                            "applicant_count": job_counts_map.get(j_id, 0),
+                            "location": j.get("location", "Remote"),
+                            "created_at": j.get("created_at")
+                        })
             except Exception as e:
                 logger.warning(f"Error computing dashboard counts: {e}")
 

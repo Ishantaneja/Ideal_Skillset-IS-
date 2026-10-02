@@ -94,15 +94,17 @@ class HiringAgent:
         if len(top_candidates) >= 2 and any(term in prompt_lower for term in ["compare", "why", "above", "top", "rank"]):
             try:
                 cand_ids = [c.candidate_id for c in top_candidates[:3]]
-                comp_res = await recruiter_service_ref.compare_candidates(
+                comp_res = recruiter_service_ref.compare_candidates(
                     current_recruiter=current_recruiter,
-                    comparison_in={"job_id": target_job_id, "candidate_ids": cand_ids}
+                    job_id=target_job_id,
+                    candidate_ids=cand_ids
                 )
                 data_payload["comparison"] = comp_res.model_dump() if hasattr(comp_res, "model_dump") else comp_res
+                strongest = getattr(comp_res, "strongest_candidate_id", None) or (comp_res.get("strongest_candidate_id") if isinstance(comp_res, dict) else None) or (cand_ids[0] if cand_ids else "N/A")
                 tools_executed.append(AgentToolCall(
                     tool_name="compare_candidates",
                     arguments={"candidate_ids": cand_ids, "job_id": target_job_id},
-                    result_summary=f"Compared {len(cand_ids)} top candidates. Strongest: {comp_res.get('strongest_candidate_id', cand_ids[0])}."
+                    result_summary=f"Compared {len(cand_ids)} top candidates. Strongest: {strongest}."
                 ))
             except Exception as e:
                 logger.warning(f"Agent comparison error: {e}")

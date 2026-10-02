@@ -46,6 +46,10 @@ STOP_WORDS = {
     "experience", "years", "candidate", "position", "ability", "strong", "skills", "plus",
 }
 
+WORD_TOKEN_RE = re.compile(r"\b[a-zA-Z]{3,}\b")
+KEYWORD_TOKEN_RE = re.compile(r"\b[a-zA-Z0-9_\-\.]{3,}\b")
+SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?\n])\s+")
+
 
 class ATSEngine:
     """
@@ -79,15 +83,14 @@ class ATSEngine:
         if not text:
             return None
 
-        # Split text into sentences / bullet points
-        sentences = re.split(r"(?<=[.!?\n])\s+", text)
+        # Split text into sentences / bullet points using precompiled regex
+        sentences = SENTENCE_SPLIT_RE.split(text)
         escaped_skill = re.escape(skill_name)
-        pattern = r"(?<![a-zA-Z0-9_\-\.])" + escaped_skill + r"(?![a-zA-Z0-9_\-\.])"
+        pattern = re.compile(r"(?<![a-zA-Z0-9_\-\.])" + escaped_skill + r"(?![a-zA-Z0-9_\-\.])", re.IGNORECASE)
 
         for sent in sentences:
             sent_clean = sent.strip().lstrip("•-*–> ")
-            if len(sent_clean) > 15 and re.search(pattern, sent_clean, re.IGNORECASE):
-                # Return clean sentence
+            if len(sent_clean) > 15 and pattern.search(sent_clean):
                 return sent_clean[:220]
 
         return f"Listed under candidate skills."
@@ -361,33 +364,42 @@ class ATSEngine:
                 items=[]
             )
 
-        # Collect candidate evidence sentences
-        candidate_snippets = []
+        # Collect and pre-tokenize candidate evidence sentences once
+        candidate_snippets: List[Tuple[str, set]] = []
         for exp in resume_experience:
             desc = exp.get("description", "")
             if desc:
-                candidate_snippets.extend(re.split(r"(?<=[.!?\n])\s+", desc))
+                for sent in SENTENCE_SPLIT_RE.split(desc):
+                    s_clean = sent.strip().lstrip("•-*–> ")
+                    if len(s_clean) > 15:
+                        tokens = set(WORD_TOKEN_RE.findall(s_clean.lower())) - STOP_WORDS
+                        candidate_snippets.append((s_clean, tokens))
         for proj in resume_projects:
             desc = proj.get("description", "")
             if desc:
-                candidate_snippets.extend(re.split(r"(?<=[.!?\n])\s+", desc))
+                for sent in SENTENCE_SPLIT_RE.split(desc):
+                    s_clean = sent.strip().lstrip("•-*–> ")
+                    if len(s_clean) > 15:
+                        tokens = set(WORD_TOKEN_RE.findall(s_clean.lower())) - STOP_WORDS
+                        candidate_snippets.append((s_clean, tokens))
 
         items: List[ResponsibilityMatchItem] = []
         strong_matches = 0
         partial_matches = 0
 
         for resp in job_responsibilities:
-            resp_words = set(re.findall(r"\b[a-zA-Z]{3,}\b", resp.lower())) - STOP_WORDS
+            resp_words = set(WORD_TOKEN_RE.findall(resp.lower())) - STOP_WORDS
             best_snippet = None
             best_overlap = 0.0
 
-            for snippet in candidate_snippets:
-                snippet_words = set(re.findall(r"\b[a-zA-Z]{3,}\b", snippet.lower())) - STOP_WORDS
-                if resp_words and snippet_words:
-                    overlap = len(resp_words.intersection(snippet_words)) / len(resp_words)
-                    if overlap > best_overlap:
-                        best_overlap = overlap
-                        best_snippet = snippet.strip()
+            if resp_words and candidate_snippets:
+                resp_len = len(resp_words)
+                for snippet_clean, snippet_words in candidate_snippets:
+                    if snippet_words:
+                        overlap = len(resp_words.intersection(snippet_words)) / resp_len
+                        if overlap > best_overlap:
+                            best_overlap = overlap
+                            best_snippet = snippet_clean
 
             if best_overlap >= 0.35:
                 strong_matches += 1
@@ -436,7 +448,7 @@ class ATSEngine:
             return KeywordMatchResult(score=100.0, matched=[], missing=[])
 
         # Extract domain terms (capitalized words, technical terms)
-        jd_words = re.findall(r"\b[a-zA-Z0-9_\-\.]{3,}\b", job_raw_text)
+        jd_words = KEYWORD_TOKEN_RE.findall(job_raw_text)
         candidate_keywords = set()
         for w in jd_words:
             w_lower = w.lower()
@@ -448,13 +460,18 @@ class ATSEngine:
         matched = []
         missing = []
         lower_resume = resume_raw_text.lower()
+        resume_tokens = set(KEYWORD_TOKEN_RE.findall(lower_resume))
 
         for kw in keywords_list:
-            escaped = re.escape(kw)
-            if re.search(r"(?<![a-zA-Z0-9_\-\.])" + escaped + r"(?![a-zA-Z0-9_\-\.])", lower_resume, re.IGNORECASE):
+            kw_lower = kw.lower()
+            if kw_lower in resume_tokens:
                 matched.append(kw)
             else:
-                missing.append(kw)
+                escaped = re.escape(kw)
+                if re.search(r"(?<![a-zA-Z0-9_\-\.])" + escaped + r"(?![a-zA-Z0-9_\-\.])", lower_resume, re.IGNORECASE):
+                    matched.append(kw)
+                else:
+                    missing.append(kw)
 
         total = len(keywords_list)
         score = 100.0 if total == 0 else round((len(matched) / total) * 100.0, 1)

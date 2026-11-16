@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from pymongo.errors import DuplicateKeyError
 
 from app.models.user import (
+    ChangePasswordRequest,
     SignupRequest,
     RecruiterSignupRequest,
     LoginRequest,
@@ -467,6 +468,85 @@ class AuthService:
             "status": "success",
             "message": "Logged out successfully",
             "last_seen_at": now,
+        }
+
+
+
+    @staticmethod
+    def change_admin_password(
+        current_user: Dict[str, Any],
+        password_data: ChangePasswordRequest
+    ) -> Dict[str, str]:
+
+        # Only administrators can change passwords through this method
+        if current_user.get("role") != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators can change passwords here."
+            )
+
+        user_id = current_user.get("id")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid user identity."
+            )
+
+        users_col = mongo_manager.user_data
+
+        if users_col is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database is unavailable. Password was not changed."
+            )
+
+        query = (
+            {"_id": ObjectId(user_id)}
+            if ObjectId.is_valid(user_id)
+            else {"_id": user_id}
+        )
+
+        user_doc = users_col.find_one(query)
+
+        if not user_doc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Admin account not found."
+            )
+
+        if not verify_password(
+            password_data.current_password,
+            user_doc.get("password_hash")
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is incorrect."
+            )
+
+        if verify_password(
+            password_data.new_password,
+            user_doc.get("password_hash")
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New password must be different from current password."
+            )
+
+        new_password_hash = hash_password(password_data.new_password)
+
+        users_col.update_one(
+            query,
+            {
+                "$set": {
+                    "password_hash": new_password_hash,
+                    "updated_at": datetime.now(timezone.utc)
+                }
+            }
+        )
+
+        return {
+            "status": "success",
+            "message": "Admin password changed successfully."
         }
 
 

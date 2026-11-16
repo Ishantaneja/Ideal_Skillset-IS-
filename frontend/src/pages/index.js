@@ -21,3 +21,6 @@ export { default as AdminUsers } from './admin/AdminUsers';
 export { default as AdminJobRoles } from './admin/AdminJobRoles';
 export { default as AdminUserProfile } from './admin/AdminUserProfile';
 export { default as AdminUserReadiness } from './admin/AdminUserReadiness';
+export { default as AdminAssessments } from './admin/AdminAssessments';
+export { default as AdminAnalytics } from './admin/AdminAnalytics';
+export { default as AdminSettings } from './admin/AdminSettings';

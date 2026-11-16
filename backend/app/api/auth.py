@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status
 from typing import Dict, Any
 from app.models.user import (
+    ChangePasswordRequest,
     SignupRequest,
     RecruiterSignupRequest,
     SignupOTPRequest,
@@ -14,7 +15,7 @@ from app.models.user import (
 )
 from app.services.auth_service import auth_service
 from app.services.otp_service import OTPService
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_admin
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -123,6 +124,25 @@ async def admin_login(login_data: LoginRequest):
     Rejects normal candidate users with 403 Forbidden.
     """
     return auth_service.authenticate_admin(login_data)
+
+
+@router.post(
+    "/admin/change-password",
+    status_code=status.HTTP_200_OK,
+    summary="Change Admin Password"
+)
+async def change_admin_password(
+    password_data: ChangePasswordRequest,
+    current_user: Dict[str, Any] = Depends(require_admin)
+):
+    """
+    Changes the authenticated administrator's password.
+    Requires a valid admin JWT Bearer token.
+    """
+    return auth_service.change_admin_password(
+        current_user,
+        password_data
+    )
 
 
 @router.post(

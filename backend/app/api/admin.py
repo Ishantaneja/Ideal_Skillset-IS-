@@ -1,4 +1,5 @@
 from datetime import datetime
+from collections import defaultdict
 from fastapi import APIRouter, Depends, status, HTTPException
 from typing import Dict, Any, List
 from app.core.dependencies import get_current_admin
@@ -9,6 +10,7 @@ from app.services.resume_service import _IN_MEMORY_RESUMES
 from pymongo import DESCENDING
 from bson import ObjectId
 import logging
+logger = logging.getLogger('uvicorn.error')
 from app.services.readiness_service import readiness_service
 from app.services.skill_gap_service import skill_gap_service
 
@@ -794,3 +796,382 @@ async def get_job_roles(
         "items": roles,
         "total": len(roles)
     }
+
+
+@router.post(
+    "/assessments",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create Assessment"
+)
+async def create_assessment(
+    payload: Dict[str, Any],
+    current_admin: Dict[str, Any] = Depends(get_current_admin)
+):
+    """
+    Creates an MCQ or Practical/Coding assessment.
+    Only administrators can create assessments.
+    """
+
+    assessments_col = mongo_manager.assessments
+    job_roles_col = mongo_manager.job_roles
+
+    if assessments_col is None or job_roles_col is None:
+        raise HTTPException(
+            status_code=503,
+            detail="MongoDB is currently unavailable."
+        )
+
+    # 1. Read and validate basic details
+    name = str(payload.get("name", "")).strip()
+    job_role = str(payload.get("job_role", "")).strip()
+    category = str(payload.get("category", "Technical")).strip()
+    duration = payload.get("duration")
+    passing_score = payload.get("passing_score")
+    assessment_status = str(
+        payload.get("status", "Active")
+    ).strip().capitalize()
+
+    questions = payload.get("questions", [])
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Assessment name is required.")
+
+    if not job_role:
+        raise HTTPException(status_code=400, detail="Job role is required.")
+
+    if category not in ["Technical", "Aptitude", "Practical"]:
+        raise HTTPException(status_code=400, detail="Invalid assessment category.")
+
+    if not isinstance(duration, int) or duration <= 0:
+        raise HTTPException(status_code=400, detail="Duration must be a positive number.")
+
+    if not isinstance(passing_score, int) or not 0 <= passing_score <= 100:
+        raise HTTPException(status_code=400, detail="Passing score must be between 0 and 100.")
+
+    if assessment_status not in ["Active", "Inactive"]:
+        raise HTTPException(status_code=400, detail="Invalid assessment status.")
+
+    # 2. Verify that the selected job role exists and is active
+    role_doc = job_roles_col.find_one({"name": job_role})
+
+    if not role_doc or str(role_doc.get("status", "Active")).lower() != "active":
+        raise HTTPException(
+            status_code=400,
+            detail="Selected job role does not exist or is inactive."
+        )
+
+    # 3. Validate questions
+    if not isinstance(questions, list) or not questions:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one assessment question is required."
+        )
+
+    validated_questions = []
+
+    for index, question in enumerate(questions, start=1):
+
+        if not isinstance(question, dict):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Question {index} must be an object."
+            )
+
+        question_type = str(question.get("type", "")).lower()
+        question_text = str(question.get("question_text", "")).strip()
+
+        if question_type not in ["mcq", "practical"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Question {index} must be MCQ or Practical."
+            )
+
+        if not question_text:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Question {index} text is required."
+            )
+
+        question_doc = {
+            "question_id": f"q_{index}",
+            "type": question_type,
+            "question_text": question_text,
+            "marks": int(question.get("marks", 1))
+        }
+
+        if question_doc["marks"] <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Question {index} marks must be positive."
+            )
+
+        if question_type == "mcq":
+
+            options = question.get("options", [])
+            correct_answer = question.get("correct_answer")
+
+            if (
+                not isinstance(options, list)
+                or len(options) < 2
+                or not all(isinstance(option, str) and option.strip() for option in options)
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"MCQ question {index} needs at least two valid options."
+                )
+
+            if correct_answer not in options:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"MCQ question {index} must have a correct answer from its options."
+                )
+
+            question_doc["options"] = options
+            question_doc["correct_answer"] = correct_answer
+
+        else:
+            language = str(question.get("language", "Python")).strip()
+            test_cases = question.get("test_cases", [])
+
+            if not isinstance(test_cases, list) or not test_cases:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Practical question {index} needs at least one test case."
+                )
+
+            question_doc["language"] = language
+            question_doc["test_cases"] = test_cases
+            question_doc["starter_code"] = str(
+                question.get("starter_code", "")
+            )
+
+        validated_questions.append(question_doc)
+
+    # 4. Calculate total marks
+    total_marks = sum(q["marks"] for q in validated_questions)
+
+    # 5. Save assessment in MongoDB
+    now = datetime.utcnow()
+
+    assessment_doc = {
+        "name": name,
+        "job_role": job_role,
+        "category": category,
+        "duration": duration,
+        "passing_score": passing_score,
+        "status": assessment_status,
+        "questions": validated_questions,
+        "total_questions": len(validated_questions),
+        "total_marks": total_marks,
+        "created_by": str(current_admin.get("id", "")),
+        "created_at": now,
+        "updated_at": now
+    }
+
+    result = assessments_col.insert_one(assessment_doc)
+
+    return {
+        "status": "success",
+        "message": "Assessment created successfully.",
+        "assessment": {
+            "id": str(result.inserted_id),
+            "name": name,
+            "job_role": job_role,
+            "category": category,
+            "duration": duration,
+            "passing_score": passing_score,
+            "status": assessment_status,
+            "total_questions": len(validated_questions),
+            "total_marks": total_marks,
+            "created_at": now
+        }
+    }
+
+
+@router.get(
+    "/assessments",
+    status_code=status.HTTP_200_OK,
+    summary="Get All Assessments"
+)
+async def get_all_assessments(
+    current_admin: Dict[str, Any] = Depends(get_current_admin)
+):
+    """
+    Returns all assessments created by administrators.
+    """
+
+    assessments_col = mongo_manager.assessments
+
+    if assessments_col is None:
+        raise HTTPException(
+            status_code=503,
+            detail="MongoDB is currently unavailable."
+        )
+
+    assessments = []
+
+    cursor = assessments_col.find({}).sort("created_at", DESCENDING)
+
+    for doc in cursor:
+        assessments.append({
+            "id": str(doc.get("_id")),
+            "name": doc.get("name", ""),
+            "job_role": doc.get("job_role", ""),
+            "category": doc.get("category", ""),
+            "duration": doc.get("duration", 0),
+            "passing_score": doc.get("passing_score", 0),
+            "status": doc.get("status", "Inactive"),
+            "total_questions": doc.get("total_questions", 0),
+            "total_marks": doc.get("total_marks", 0),
+            "created_at": doc.get("created_at"),
+            "updated_at": doc.get("updated_at")
+        })
+
+    return {
+        "items": assessments,
+        "total": len(assessments)
+    }
+
+
+@router.put(
+    "/assessments/{assessment_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Update Assessment Status"
+)
+async def update_assessment_status(
+    assessment_id: str,
+    payload: Dict[str, Any],
+    current_admin: Dict[str, Any] = Depends(get_current_admin)
+):
+    """Update the status of an existing assessment."""
+
+    assessments_col = mongo_manager.assessments
+
+    if assessments_col is None:
+        raise HTTPException(
+            status_code=503,
+            detail="MongoDB is currently unavailable."
+        )
+
+    if not ObjectId.is_valid(assessment_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid assessment ID."
+        )
+
+    new_status = payload.get("status")
+
+    allowed_statuses = ["Active", "Inactive", "Ended"]
+
+    if new_status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail="Status must be Active, Inactive, or Ended."
+        )
+
+    result = assessments_col.update_one(
+        {"_id": ObjectId(assessment_id)},
+        {
+            "$set": {
+                "status": new_status,
+                "updated_at": datetime.utcnow()
+            }
+        }
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="Assessment not found."
+        )
+
+    return {
+        "message": "Assessment status updated successfully.",
+        "assessment_id": assessment_id,
+        "status": new_status
+    }
+
+
+@router.get(
+    "/analytics/overview",
+    status_code=status.HTTP_200_OK,
+    summary="Get Admin Analytics Overview"
+)
+async def get_admin_analytics_overview(
+    current_admin: Dict[str, Any] = Depends(get_current_admin)
+):
+    """Return real analytics statistics from MongoDB."""
+
+    try:
+        users_col = mongo_manager.users
+        resumes_col = mongo_manager.resumes
+        ats_col = mongo_manager.ats_results
+        assessments_col = mongo_manager.assessments
+        attempts_col = mongo_manager.assessment_attempts
+        readiness_col = mongo_manager.readiness
+
+        if mongo_manager.get_database() is None:
+            raise HTTPException(
+                status_code=503,
+                detail="MongoDB is currently unavailable."
+            )
+
+        total_candidates = users_col.count_documents({"role": {"$nin": ["admin", "ADMIN"]}})
+        # Candidate Growth - Month-wise registrations
+        candidate_growth = defaultdict(int)
+
+        candidates = users_col.find(
+            {"role": {"$nin": ["admin", "ADMIN"]}},
+            {"created_at": 1}
+        )
+        for candidate in candidates:
+            created_at = candidate.get("created_at")
+            if created_at:
+                try:
+                    if isinstance(created_at, str):
+                        created_at = datetime.fromisoformat(
+                            created_at.replace("Z", "+00:00")
+                        )
+                    month = created_at.strftime("%b %Y")
+                    candidate_growth[month] += 1
+                except (ValueError, TypeError):
+                    continue
+        candidate_growth_data = [
+            {"month": month, "candidates": count}
+            for month, count in sorted(candidate_growth.items())
+        ]
+        total_resumes = resumes_col.count_documents({})
+        total_ats_analyses = ats_col.count_documents({})
+        total_assessments = assessments_col.count_documents({})
+        active_assessments = assessments_col.count_documents(
+            {"status": "Active"}
+        )
+        total_attempts = attempts_col.count_documents({})
+        completed_attempts = attempts_col.count_documents(
+            {"status": "Completed"}
+        )
+        total_readiness_reports = readiness_col.count_documents({})
+
+        return {
+            "total_candidates": total_candidates,
+            "total_resumes": total_resumes,
+            "total_ats_analyses": total_ats_analyses,
+            "total_assessments": total_assessments,
+            "active_assessments": active_assessments,
+            "total_attempts": total_attempts,
+            "completed_attempts": completed_attempts,
+            "total_readiness_reports": total_readiness_reports,
+            "candidate_growth": candidate_growth_data
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.error(f"Analytics overview error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch analytics overview."
+        )
+
+

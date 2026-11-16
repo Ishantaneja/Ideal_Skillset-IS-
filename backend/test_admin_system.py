@@ -21,6 +21,9 @@ def test_admin_portal_comprehensive():
     - Active job roles public endpoint (/jobs/roles)
     - Candidate deactivation and reactivation (/admin/users/{id}/deactivate, activate)
     - User logout (/auth/logout)
+    - Assessment management (/admin/assessments: create, list, update status)
+    - Admin analytics overview (/admin/analytics/overview)
+    - Admin password change (/auth/admin/change-password)
     """
     mongo_manager.connect()
     ts = int(datetime.now().timestamp())
@@ -149,7 +152,57 @@ def test_admin_portal_comprehensive():
         assert r_update.status_code == 200
         assert r_update.json().get("job_role", {}).get("name") == f"{role_name} Senior"
 
-    # 7. Candidate Deactivation & Reactivation
+    # 7. Assessment Management (New in Ideal_Skillset-IS-)
+    assessment_payload = {
+        "name": f"Python Assessment {ts}",
+        "job_role": role_name,
+        "category": "Technical",
+        "duration": 30,
+        "passing_score": 70,
+        "status": "Active",
+        "questions": [
+            {
+                "question": "What is Python?",
+                "type": "mcq",
+                "options": ["Language", "Snake", "Both", "None"],
+                "correct_answer": "Language"
+            }
+        ]
+    }
+    r_create_assessment = client.post("/api/admin/assessments", json=assessment_payload, headers=admin_headers)
+    assert r_create_assessment.status_code == 201
+    assessment_res = r_create_assessment.json()
+    assessment_id = assessment_res.get("assessment", {}).get("id") or assessment_res.get("id")
+
+    # List assessments
+    r_list_assessments = client.get("/api/admin/assessments", headers=admin_headers)
+    assert r_list_assessments.status_code == 200
+    assert "items" in r_list_assessments.json()
+
+    # Update assessment status
+    if assessment_id:
+        r_up_status = client.put(f"/api/admin/assessments/{assessment_id}", json={"status": "Inactive"}, headers=admin_headers)
+        assert r_up_status.status_code == 200
+        assert r_up_status.json().get("status") == "Inactive"
+
+    # 8. Admin Analytics Overview (New in Ideal_Skillset-IS-)
+    r_analytics = client.get("/api/admin/analytics/overview", headers=admin_headers)
+    assert r_analytics.status_code == 200
+    analytics_data = r_analytics.json()
+    assert "total_candidates" in analytics_data
+    assert "total_assessments" in analytics_data
+    assert "candidate_growth" in analytics_data
+
+    # 9. Change Admin Password (New in Ideal_Skillset-IS-)
+    change_pw_payload = {
+        "current_password": "AdminPass123!",
+        "new_password": "AdminNewPass456!"
+    }
+    r_change_pw = client.post("/api/auth/admin/change-password", json=change_pw_payload, headers=admin_headers)
+    assert r_change_pw.status_code == 200
+    assert r_change_pw.json().get("status") == "success"
+
+    # 10. Candidate Deactivation & Reactivation
     r_deact = client.post(f"/api/admin/users/{cand_id}/deactivate", headers=admin_headers)
     assert r_deact.status_code == 200
     assert r_deact.json().get("status") == "success"
@@ -167,7 +220,7 @@ def test_admin_portal_comprehensive():
     r_cand_login2 = client.post("/api/auth/login", json={"email": candidate_email, "password": "CandidatePass123!"})
     assert r_cand_login2.status_code == 200
 
-    # 8. User Logout
+    # 11. User Logout
     r_logout = client.post("/api/auth/logout", headers=cand_headers)
     assert r_logout.status_code == 200
     assert r_logout.json().get("status") == "success"
@@ -181,5 +234,7 @@ def test_admin_portal_comprehensive():
                 user_col.delete_one({"_id": ObjectId(cand_id)})
             if mongo_manager.job_roles is not None and job_role_id and ObjectId.is_valid(job_role_id):
                 mongo_manager.job_roles.delete_one({"_id": ObjectId(job_role_id)})
+            if mongo_manager.assessments is not None and assessment_id and ObjectId.is_valid(assessment_id):
+                mongo_manager.assessments.delete_one({"_id": ObjectId(assessment_id)})
         except Exception:
             pass

@@ -4,9 +4,7 @@ import {
   ShieldAlert,
   Users,
   Briefcase,
-  Layers,
   ClipboardList,
-  MessageSquareQuote,
   BarChart3,
   Settings,
   LogOut,
@@ -25,11 +23,9 @@ export default function AdminSidebar({ isOpen, onClose }) {
     { name: 'Dashboard', href: ROUTES.ADMIN_DASHBOARD, icon: LayoutDashboard },
     { name: 'Users', href: '/admin/users', icon: Users },
     { name: 'Job Roles', href: '/admin/job-roles', icon: Briefcase },
-    { name: 'Skills', href: `${ROUTES.ADMIN_DASHBOARD}#skills`, icon: Layers },
-    { name: 'Assessments', href: `${ROUTES.ADMIN_DASHBOARD}#assessments`, icon: ClipboardList },
-    { name: 'Interview Questions', href: `${ROUTES.ADMIN_DASHBOARD}#interview-questions`, icon: MessageSquareQuote },
-    { name: 'Analytics', href: `${ROUTES.ADMIN_DASHBOARD}#analytics`, icon: BarChart3 },
-    { name: 'Settings', href: `${ROUTES.ADMIN_DASHBOARD}#settings`, icon: Settings },
+    { name: 'Assessments', href: '/admin/assessments', icon: ClipboardList },
+    { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+    { name: 'Settings', href: '/admin/settings', icon: Settings },
   ];
 
   const handleLogout = () => {
@@ -90,8 +86,20 @@ export default function AdminSidebar({ isOpen, onClose }) {
                     const isJobRoles =
                       item.href === '/admin/job-roles' &&
                       location.pathname.startsWith('/admin/job-roles');
+                    
+                    const isAssessments =
+                      item.href === '/admin/assessments' &&
+                      location.pathname.startsWith('/admin/assessments');
+                    
+                    const isAnalytics =
+                      item.href === '/admin/analytics' &&
+                      location.pathname.startsWith('/admin/analytics');
+                    
+                    const isSettings =
+                      item.href === '/admin/settings' &&
+                      location.pathname.startsWith('/admin/settings');
 
-                    const isActiveItem = isDashboard || isUsers || isJobRoles;
+                    const isActiveItem = isDashboard || isUsers || isJobRoles || isAssessments || isAnalytics || isSettings;
 
                     return `flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                       isActiveItem

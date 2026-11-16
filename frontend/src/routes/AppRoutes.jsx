@@ -48,6 +48,9 @@ const AdminUserReadiness = lazy(
   () => import('@/pages/admin/AdminUserReadiness')
 );
 const AdminJobRoles = lazy(() => import('@/pages/admin/AdminJobRoles'));
+const AdminAssessments = lazy(() => import('@/pages/admin/AdminAssessments'));
+const AdminAnalytics = lazy(() => import('@/pages/admin/AdminAnalytics'));
+const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'));
 
 export default function AppRoutes() {
   return (
@@ -116,6 +119,9 @@ export default function AppRoutes() {
           <Route path={ROUTES.ADMIN_DASHBOARD} element={<AdminDashboard />} />
           <Route path="/admin/job-roles" element={<AdminJobRoles />} />
           <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/assessments" element={<AdminAssessments />} />
+          <Route path="/admin/analytics" element={<AdminAnalytics />} />
+          <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/admin/users/:id" element={<AdminUserProfile />} />
           <Route path="/admin/users/:id/readiness" element={<AdminUserReadiness />} />
         </Route>

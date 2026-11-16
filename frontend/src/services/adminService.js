@@ -11,6 +11,24 @@ const adminService = {
     return response.data;
   },
 
+  getAssessments: async () => {
+    const response = await api.get('/admin/assessments');
+    return response.data;
+  },
+
+  getAnalyticsOverview: async () => {
+    const response = await api.get('/admin/analytics/overview');
+    return response.data;
+  },
+
+  updateAssessmentStatus: async (assessmentId, status) => {
+    const response = await api.put(
+      `/admin/assessments/${assessmentId}`,
+      { status }
+    );
+    return response.data;
+  },
+
   getUsers: async () => {
     const response = await api.get('/admin/users');
     return response.data;
@@ -43,6 +61,15 @@ const adminService = {
 
   activateUser: async (userId) => {
     const response = await api.post(`/admin/users/${userId}/activate`);
+    return response.data;
+  },
+
+  // Change Admin Password
+  changeAdminPassword: async (passwordData) => {
+    const response = await api.post(
+      '/auth/admin/change-password',
+      passwordData
+    );
     return response.data;
   },
 };

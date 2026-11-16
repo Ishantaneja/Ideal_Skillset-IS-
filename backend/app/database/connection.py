@@ -228,6 +228,32 @@ class MongoDBManager:
                 except Exception as e:
                     logger.warning(f"Note on Job_Roles index creation: {e}")
 
+                # Assessment indexes
+                try:
+                    assessments_col = self.db["Assessments"]
+                    assessments_col.create_index(
+                        [("job_role", ASCENDING), ("status", ASCENDING)],
+                        name="idx_assessments_role_status"
+                    )
+                    logger.info("Verified indexes on Assessments")
+                except Exception as e:
+                    logger.warning(f"Note on Assessments index creation: {e}")
+
+                # Assessment Attempts indexes
+                try:
+                    attempts_col = self.db["Assessment_Attempts"]
+                    attempts_col.create_index(
+                        [("user_id", ASCENDING), ("created_at", DESCENDING)],
+                        name="idx_attempts_user_created"
+                    )
+                    attempts_col.create_index(
+                        [("assessment_id", ASCENDING), ("status", ASCENDING)],
+                        name="idx_attempts_assessment_status"
+                    )
+                    logger.info("Verified indexes on Assessment_Attempts")
+                except Exception as e:
+                    logger.warning(f"Note on Assessment Attempts index creation: {e}")
+
                 logger.info("Verified indexes for Recruiter AI Hiring Copilot collections")
             except Exception as e:
                 logger.warning(f"Note on Recruiter collections index creation: {e}")
@@ -338,6 +364,15 @@ class MongoDBManager:
     @property
     def assessments(self) -> Optional[Collection]:
         return self.get_collection("Assessments")
+
+    @property
+    @property
+    def assessment_attempts(self) -> Optional[Collection]:
+        return self.get_collection("Assessment_Attempts")
+
+    @property
+    def Assessment_Attempts(self) -> Optional[Collection]:
+        return self.get_collection("Assessment_Attempts")
 
     @property
     def assessment_results(self) -> Optional[Collection]:

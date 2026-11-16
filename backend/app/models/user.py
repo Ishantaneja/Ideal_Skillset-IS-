@@ -150,6 +150,39 @@ class LoginRequest(BaseModel):
         return str(v).lower().strip()
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(
+        ...,
+        min_length=1,
+        description="Current account password"
+    )
+
+    new_password: str = Field(
+        ...,
+        min_length=8,
+        max_length=72,
+        description="New password (8-72 characters)"
+    )
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        if value.strip() != value:
+            raise ValueError("Password cannot start or end with spaces")
+
+        if not any(char.isupper() for char in value):
+            raise ValueError("Password must contain an uppercase letter")
+
+        if not any(char.islower() for char in value):
+            raise ValueError("Password must contain a lowercase letter")
+
+        if not any(char.isdigit() for char in value):
+            raise ValueError("Password must contain a number")
+
+        return value
+
+
+
 class AdminCreate(BaseModel):
     """
     Schema for admin bootstrapping script.

@@ -49,6 +49,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://your-frontend.vercel.app"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Mount aggregated API routers under /api prefix
 app.include_router(api_router, prefix=settings.API_PREFIX)

@@ -28,15 +28,21 @@ class MongoDBManager:
         """
         try:
             logger.info(f"Connecting to MongoDB at {settings.MONGODB_URI}...")
+            client_kwargs = {
+                "minPoolSize": 10,
+                "maxPoolSize": 50,
+                "maxIdleTimeMS": 45000,
+                "serverSelectionTimeoutMS": 10000,
+                "connectTimeoutMS": 10000,
+                "socketTimeoutMS": 10000,
+                "retryWrites": True,
+            }
+            if "mongodb+srv://" in settings.MONGODB_URI or "ssl=true" in settings.MONGODB_URI.lower() or "tls=true" in settings.MONGODB_URI.lower():
+                client_kwargs["tlsCAFile"] = certifi.where()
+
             self.client = MongoClient(
                 settings.MONGODB_URI,
-                minPoolSize=10,
-                maxPoolSize=50,
-                maxIdleTimeMS=45000,
-                serverSelectionTimeoutMS=3000,
-                connectTimeoutMS=3000,
-                socketTimeoutMS=5000,
-                retryWrites=True
+                **client_kwargs
             )
             # Trigger quick server ping to test connectivity
             self.client.admin.command('ping')

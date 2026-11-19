@@ -52,7 +52,7 @@ app.add_middleware(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://your-frontend.vercel.app"
+        "https://ideal-skillset-is.vercel.app/"
     ],
     allow_credentials=True,
     allow_methods=["*"],

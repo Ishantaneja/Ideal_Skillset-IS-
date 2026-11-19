@@ -1,4 +1,5 @@
 import logging
+import re
 import certifi
 from typing import Optional
 from pymongo import MongoClient, ASCENDING, DESCENDING
@@ -27,7 +28,16 @@ class MongoDBManager:
         Handles connection errors gracefully without crashing the API server.
         """
         try:
-            logger.info(f"Connecting to MongoDB at {settings.MONGODB_URI}...")
+            # Mask credentials when logging MongoDB URI
+            sanitized_uri = re.sub(r"://([^:]+):([^@]+)@", r"://\1:****@", settings.MONGODB_URI)
+            logger.info(f"Connecting to MongoDB at {sanitized_uri}...")
+
+            is_atlas_or_tls = (
+                settings.MONGODB_URI.startswith("mongodb+srv://")
+                or "ssl=true" in settings.MONGODB_URI.lower()
+                or "tls=true" in settings.MONGODB_URI.lower()
+            )
+
             client_kwargs = {
                 "minPoolSize": 10,
                 "maxPoolSize": 50,
@@ -37,7 +47,9 @@ class MongoDBManager:
                 "socketTimeoutMS": 10000,
                 "retryWrites": True,
             }
-            if "mongodb+srv://" in settings.MONGODB_URI or "ssl=true" in settings.MONGODB_URI.lower() or "tls=true" in settings.MONGODB_URI.lower():
+
+            if is_atlas_or_tls:
+                client_kwargs["tls"] = True
                 client_kwargs["tlsCAFile"] = certifi.where()
 
             self.client = MongoClient(
@@ -372,7 +384,6 @@ class MongoDBManager:
     def assessments(self) -> Optional[Collection]:
         return self.get_collection("Assessments")
 
-    @property
     @property
     def assessment_attempts(self) -> Optional[Collection]:
         return self.get_collection("Assessment_Attempts")

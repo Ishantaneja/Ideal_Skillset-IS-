@@ -1,4 +1,5 @@
 import logging
+import certifi
 from typing import Optional
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.database import Database

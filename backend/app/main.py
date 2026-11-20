@@ -1,23 +1,35 @@
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from contextlib import asynccontextmanager
+
 from app.core.config import settings
 from app.database.connection import mongo_manager
 from app.api import api_router
 
 
+# --------------------------------------------------
+# Application Lifespan
+# --------------------------------------------------
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Lifecycle manager for application startup and shutdown events.
+    Lifecycle manager for application startup and shutdown.
     """
-    # Startup: Connect to MongoDB ideal_skillsetdb
+    # Startup: Connect to MongoDB
     mongo_manager.connect()
+
     yield
-    # Shutdown: Cleanly close MongoDB connection
+
+    # Shutdown: Close MongoDB connection
     mongo_manager.close()
 
+
+# --------------------------------------------------
+# Initialize FastAPI Application
+# --------------------------------------------------
 
 app = FastAPI(
     title=f"{settings.PROJECT_NAME} API",
@@ -28,46 +40,59 @@ app = FastAPI(
     openapi_url="/openapi.json",
     lifespan=lifespan
 )
+
+
+# --------------------------------------------------
+# CORS Configuration
+# --------------------------------------------------
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://ideal-skillset-is.vercel.app"
+        "https://ideal-skillset-is.vercel.app",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# CORS Configuration
-origins = [
-    settings.FRONTEND_URL,
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
 
-# Enable automatic gzip compression for responses >= 1KB (shrinks JSON payloads by up to 70-80%)
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+# --------------------------------------------------
+# GZIP Compression
+# --------------------------------------------------
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    GZipMiddleware,
+    minimum_size=1000
 )
 
 
-# Mount aggregated API routers under /api prefix
-app.include_router(api_router, prefix=settings.API_PREFIX)
+# --------------------------------------------------
+# API Router
+# --------------------------------------------------
+
+app.include_router(
+    api_router,
+    prefix=settings.API_PREFIX
+)
 
 
-@app.get("/api/health", tags=["Health"], summary="API Health Check")
+# --------------------------------------------------
+# Health Check Endpoint
+# --------------------------------------------------
+
+@app.get(
+    "/api/health",
+    tags=["Health"],
+    summary="API Health Check"
+)
 async def health_check():
     """
-    Health check endpoint verifying API service availability and DB status.
+    Check API availability and MongoDB connection status.
     """
     return {
         "status": "ok",
@@ -77,10 +102,18 @@ async def health_check():
     }
 
 
-@app.get("/", tags=["Root"], summary="API Root")
+# --------------------------------------------------
+# Root Endpoint
+# --------------------------------------------------
+
+@app.get(
+    "/",
+    tags=["Root"],
+    summary="API Root"
+)
 async def root():
     """
-    Root endpoint directing to API documentation.
+    Root endpoint directing users to API documentation.
     """
     return {
         "message": f"Welcome to {settings.PROJECT_NAME} API",

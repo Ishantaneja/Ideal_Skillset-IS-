@@ -202,9 +202,9 @@ cp .env.example .env      # On macOS/Linux
 python run.py
 ```
 
-- **Backend API URL**: `http://127.0.0.1:8000`
-- **Interactive Swagger Docs**: `http://127.0.0.1:8000/docs`
-- **ReDoc Documentation**: `http://127.0.0.1:8000/redoc`
+- **Backend API URL**: `https://ideal-skillset-is.onrender.com/`
+- **Interactive Swagger Docs**: `https://ideal-skillset-is.onrender.com//docs`
+- **ReDoc Documentation**: `https://ideal-skillset-is.onrender.com//redoc`
 
 ---
 

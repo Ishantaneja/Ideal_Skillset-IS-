@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
+  baseURL: import.meta.env.VITE_API_URL || 'https://ideal-skillset-is.onrender.com/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -28,7 +28,7 @@ api.interceptors.response.use(
     let message = error.response?.data?.detail || error.response?.data?.message;
     if (!message) {
       if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-        message = 'Cannot connect to backend server. Make sure the FastAPI backend is running on http://127.0.0.1:8000.';
+        message = 'Cannot connect to backend server. Make sure the FastAPI backend is running on https://ideal-skillset-is.onrender.com/.';
       } else {
         message = error.message || 'An unexpected network error occurred';
       }

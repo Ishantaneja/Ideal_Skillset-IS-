@@ -2,7 +2,7 @@ import urllib.request
 import urllib.error
 import json
 
-BASE = "http://127.0.0.1:8000"
+BASE = "http://ideal-skillset-is.onrender.com/"
 
 def test_req(path, method="GET", body=None, token=None):
     url = f"{BASE}{path}"
